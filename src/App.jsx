@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
-import { createClient } from "@supabase/supabase-js";
 
-// --- SUPABASE KONFIGURÁCIÓ ---
-const SUPABASE_URL = "https://waiiogonnyryhizxvptm.supabase.co";
+// --- SUPABASE REST KONFIGURÁCIÓ ---
+const SUPABASE_BASE = "https://waiiogonnyryhizxvptm.supabase.co/rest/v1";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhaWlvZ29ubnlyeWhpenh2cHRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0OTA5NjMsImV4cCI6MjEwNDA2Njk2M30.waiyyiAV2Vxkp2r4vgUmsMzNmhvIXWKJaXXrFhnG15k";
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+const HEADERS = {
+  apikey: SUPABASE_KEY,
+  Authorization: `Bearer ${SUPABASE_KEY}`,
+  "Content-Type": "application/json"
+};
 
 // --- BEÉPÍTETT SVG IKONOK ---
 const CheckCircleIcon = ({ size = 20, className = "" }) => (
@@ -145,64 +148,41 @@ export default function App() {
   const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
   const [newMilestoneDomain, setNewMilestoneDomain] = useState("Otthon & Lakás");
 
-  // 1. KEZDETI BETÖLTÉS ÉS VALÓS IDEJŰ WEBSOCKET / FALLBACK
+  // 1. ADATLEKÉRÉS ÉS PERIODIKUS HÁTTÉR-SZINKRONIZÁCIÓ (3 MP)
   useEffect(() => {
-    async function loadLatestData() {
+    async function fetchServerState() {
       try {
-        const { data, error } = await supabase
-          .from("app_state")
-          .select("data")
-          .eq("id", "primary_user")
-          .maybeSingle();
-
-        if (!error && data?.data) {
-          setState((current) => {
-            if (JSON.stringify(current) !== JSON.stringify(data.data)) {
-              isInternalUpdate.current = true;
-              localStorage.setItem("mc_cloud_state", JSON.stringify(data.data));
-              return data.data;
-            }
-            return current;
-          });
-          setSyncStatus("synced");
+        const res = await fetch(`${SUPABASE_BASE}/app_state?id=eq.primary_user&select=data`, {
+          headers: HEADERS
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          if (rows && rows.length > 0 && rows[0].data) {
+            setState((current) => {
+              if (JSON.stringify(current) !== JSON.stringify(rows[0].data)) {
+                isInternalUpdate.current = true;
+                localStorage.setItem("mc_cloud_state", JSON.stringify(rows[0].data));
+                return rows[0].data;
+              }
+              return current;
+            });
+            setSyncStatus("synced");
+          }
         }
       } catch (err) {
-        console.warn("Hiba a lekéréskor:", err);
+        console.warn("Szinkron hiba:", err);
       }
     }
 
-    // Kezdeti lekérés
-    loadLatestData();
+    // Első betöltés
+    fetchServerState();
 
-    // WebSocket csatorna figyelése
-    const channel = supabase
-      .channel("realtime-app-state-v3")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "app_state",
-          filter: "id=eq.primary_user"
-        },
-        () => {
-          loadLatestData();
-        }
-      )
-      .subscribe();
-
-    // 3 másodperces csendes ellenőrzés
-    const interval = setInterval(() => {
-      loadLatestData();
-    }, 3000);
-
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(interval);
-    };
+    // 3 másodperces csendes ellenőrzés (oldalfrissítés nélküli átugrás)
+    const interval = setInterval(fetchServerState, 3000);
+    return () => clearInterval(interval);
   }, []);
 
-  // 2. HELYI VÁLTOZTATÁSOK KÜLDÉSE A FELHŐBE
+  // 2. HELYI VÁLTOZTATÁSOK MENTÉSE
   useEffect(() => {
     if (isInternalUpdate.current) {
       isInternalUpdate.current = false;
@@ -214,15 +194,19 @@ export default function App() {
 
     const timer = setTimeout(async () => {
       try {
-        const { error } = await supabase
-          .from("app_state")
-          .upsert({
-            id: "primary_user",
+        const res = await fetch(`${SUPABASE_BASE}/app_state?id=eq.primary_user`, {
+          method: "PATCH",
+          headers: {
+            ...HEADERS,
+            Prefer: "return=representation"
+          },
+          body: JSON.stringify({
             data: state,
             updated_at: new Date().toISOString()
-          });
+          })
+        });
 
-        if (!error) {
+        if (res.ok) {
           setSyncStatus("synced");
         } else {
           setSyncStatus("offline");
@@ -341,7 +325,7 @@ export default function App() {
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 max-w-md mx-auto font-sans pb-24 select-none">
       
-      {/* FEJLÉC ÉS ÉLŐ KAPCSOLAT ÁLLAPOT */}
+      {/* FEJLÉC */}
       <header className="p-4 border-b border-slate-800/80 bg-slate-900/50 backdrop-blur sticky top-0 z-20 flex justify-between items-center">
         <div>
           <div className="flex items-center gap-2">
@@ -675,7 +659,6 @@ export default function App() {
               </p>
             </div>
 
-            {/* SZOKÁS MÁTRIX */}
             <section className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Szokások Heti Mátrixa</span>
