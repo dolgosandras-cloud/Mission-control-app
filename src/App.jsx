@@ -107,7 +107,6 @@ const DAYS_OF_WEEK = [
   { key: "2026-09-06", short: "V", label: "Vasárnap" }
 ];
 
-// INITIAL DATA A 7 ÉLETTERÜLETTEL
 const INITIAL_DATA = {
   sprint: {
     id: "sprint-1",
@@ -214,18 +213,18 @@ export default function App() {
   const [syncStatus, setSyncStatus] = useState("synced");
   const isInternalUpdate = useRef(false);
 
-  // Harmonika (lenyitás): melyik terület van épp kinyitva (alapértelmezésben semelyik = null)
+  // Harmonika: melyik terület van kinyitva (null = mind csukva)
   const [expandedAreaId, setExpandedAreaId] = useState(null);
 
-  // Iránytű szerkesztés állapota
+  // Iránytű szerkesztés
   const [editingAreaId, setEditingAreaId] = useState(null);
   const [editForm, setEditForm] = useState({ title: "", hell: "", ideal: "", nextBigGoal: "" });
 
-  // Új terület hozzáadás űrlap láthatóság
+  // Új terület hozzáadás panel állapota
   const [isAddingNewArea, setIsAddingNewArea] = useState(false);
   const [newAreaTitle, setNewAreaTitle] = useState("");
 
-  // Beviteli mezők (napi & sprint)
+  // Napi és Sprint beviteli mezők
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskType, setNewTaskType] = useState("BIG3");
   const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
@@ -317,13 +316,13 @@ export default function App() {
   const completedMilestones = sprint.milestones.filter((m) => m.done).length;
   const sprintProgressPct = sprint.milestones.length > 0 ? Math.round((completedMilestones / sprint.milestones.length) * 100) : 0;
 
-  // Harmonika kezelés
+  // Harmonika kattintáskezelő
   const toggleAreaExpand = (id) => {
-    if (editingAreaId) return; // Szerkesztés közben ne csukjuk be véletlenül
+    if (editingAreaId) return;
     setExpandedAreaId((prev) => (prev === id ? null : id));
   };
 
-  // Iránytű szerkesztés indítása
+  // Iránytű szerkesztés megnyitása
   const startEditArea = (area, e) => {
     e.stopPropagation();
     setExpandedAreaId(area.id);
@@ -336,7 +335,7 @@ export default function App() {
     });
   };
 
-  // Iránytű kártya mentése
+  // Iránytű mentése
   const saveEditArea = (id, e) => {
     e.stopPropagation();
     setState((prev) => ({
@@ -360,7 +359,7 @@ export default function App() {
     setExpandedAreaId(null);
   };
 
-  // Új életterület hozzáadása
+  // Új terület hozzáadása
   const handleAddNewArea = (e) => {
     e.preventDefault();
     if (!newAreaTitle.trim()) return;
@@ -378,7 +377,6 @@ export default function App() {
     }));
     setNewAreaTitle("");
     setIsAddingNewArea(false);
-    // Egyből kinyitjuk és szerkesztő módba tesszük
     setExpandedAreaId(newId);
     setEditingAreaId(newId);
     setEditForm({
@@ -504,7 +502,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* VÍZSZINTES HETI NAPTÁRSÁV (Ha nem az Iránytű van nyitva) */}
+      {/* VÍZSZINTES HETI NAPTÁRSÁV */}
       {activeTab !== "vision" && (
         <div className="bg-slate-900/80 border-b border-slate-800 px-3 py-2.5 flex justify-between gap-1.5 overflow-x-auto">
           {DAYS_OF_WEEK.map((day) => {
@@ -913,51 +911,19 @@ export default function App() {
           </div>
         )}
 
-        {/* 4. IRÁNYTŰ TAB (HARMONIKA, SZERKESZTHETŐ CÍM, ÚJ TERÜLET FELVÉTEL) */}
+        {/* 4. IRÁNYTŰ TAB */}
         {activeTab === "vision" && (
           <div className="space-y-4">
             
-            {/* IRÁNYTŰ FEJLÉC ÉS ÚJ TERÜLET GOMB */}
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CompassIcon size={20} className="text-emerald-400" />
-                  <h2 className="text-sm font-bold uppercase tracking-wider text-emerald-400">Élet-Iránytű</h2>
-                </div>
-                <button
-                  onClick={() => setIsAddingNewArea(!isAddingNewArea)}
-                  className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1 transition"
-                >
-                  <PlusIcon size={13} />
-                  <span>Új terület</span>
-                </button>
+            {/* IRÁNYTŰ FEJLÉC */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2 shadow-sm">
+              <div className="flex items-center gap-2">
+                <CompassIcon size={20} className="text-emerald-400" />
+                <h2 className="text-sm font-bold uppercase tracking-wider text-emerald-400">Élet-Iránytű</h2>
               </div>
               <p className="text-xs text-slate-400 leading-relaxed">
-                Kattints egy kártyára a részletek kinyitásához. A szerkesztés ikonnal a nevet és a célokat is azonnal frissítheted.
+                Kattints egy kártyára a részletek kinyitásához. A szerkesztés ikonnal a nevet és a célokat is közvetlenül frissítheted.
               </p>
-
-              {/* ÚJ TERÜLET GYORS FELVÉTEL PANEL */}
-              {isAddingNewArea && (
-                <form onSubmit={handleAddNewArea} className="pt-2 border-t border-slate-800 space-y-2">
-                  <span className="text-xs font-bold text-slate-200">Új életterület megnevezése:</span>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="Pl. Lelkiség, Hobbi, Tanulmányok..."
-                      value={newAreaTitle}
-                      onChange={(e) => setNewAreaTitle(e.target.value)}
-                      className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                      autoFocus
-                    />
-                    <button
-                      type="submit"
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0"
-                    >
-                      Létrehozás
-                    </button>
-                  </div>
-                </form>
-              )}
             </div>
 
             {/* HARMONIKA KÁRTYÁK LISTÁJA */}
@@ -973,24 +939,25 @@ export default function App() {
                       isExpanded ? "border-emerald-500/40 shadow-lg shadow-black/30" : "border-slate-800/80 hover:border-slate-700"
                     }`}
                   >
-                    {/* KÁRTYA FEJLÉC (KATTINTÁSRA NYIT / CSUK) */}
+                    {/* KÁRTYA FEJLÉC */}
                     <div
                       onClick={() => toggleAreaExpand(area.id)}
-                      className="p-3.5 flex items-center justify-between cursor-pointer select-none"
+                      className="p-3.5 flex items-start justify-between cursor-pointer select-none gap-2"
                     >
-                      <div className="flex items-center gap-2.5 pr-2 flex-1">
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${isExpanded ? "bg-emerald-400" : "bg-slate-600"}`} />
-                        <div>
+                      <div className="flex items-start gap-2.5 pr-2 flex-1">
+                        <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${isExpanded ? "bg-emerald-400" : "bg-slate-600"}`} />
+                        <div className="space-y-1">
                           <h3 className="text-sm font-bold text-slate-100 tracking-wide">{area.title}</h3>
                           {!isExpanded && area.nextBigGoal && (
-                            <p className="text-[11px] text-amber-400/90 font-medium truncate max-w-[220px] mt-0.5">
-                              Cél: {area.nextBigGoal}
+                            <p className="text-xs text-amber-400/90 font-medium leading-snug whitespace-pre-line">
+                              <span className="text-[10px] uppercase font-bold text-amber-500/80 block">Következő NAGY cél:</span>
+                              {area.nextBigGoal}
                             </p>
                           )}
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-2 shrink-0 pt-0.5">
                         {!isEditing && (
                           <button
                             onClick={(e) => startEditArea(area, e)}
@@ -1129,6 +1096,51 @@ export default function App() {
                   </div>
                 );
               })}
+            </div>
+
+            {/* ÚJ TERÜLET HOZZÁADÁSA MODUL (A LISTA VÉGÉN) */}
+            <div className="pt-2">
+              {!isAddingNewArea ? (
+                <button
+                  onClick={() => setIsAddingNewArea(true)}
+                  className="w-full py-3 border border-dashed border-slate-800 hover:border-emerald-500/50 rounded-2xl flex items-center justify-center gap-2 text-xs font-semibold text-slate-400 hover:text-emerald-400 transition bg-slate-900/40"
+                >
+                  <PlusIcon size={16} />
+                  <span>Új életterület hozzáadása</span>
+                </button>
+              ) : (
+                <form onSubmit={handleAddNewArea} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-bold text-slate-200">Új életterület megnevezése</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAddingNewArea(false);
+                        setNewAreaTitle("");
+                      }}
+                      className="text-xs text-slate-500 hover:text-slate-300"
+                    >
+                      Mégse
+                    </button>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Pl. Lelkiség, Hobbi, Tanulmányok..."
+                      value={newAreaTitle}
+                      onChange={(e) => setNewAreaTitle(e.target.value)}
+                      className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                      autoFocus
+                    />
+                    <button
+                      type="submit"
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white px-3.5 py-2 rounded-lg text-xs font-semibold shrink-0"
+                    >
+                      Létrehozás
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
 
           </div>
