@@ -1,4 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+
+// --- SUPABASE KONFIGURÁCIÓ ---
+const SUPABASE_URL = "https://waiiogonnyryhizxvptm.supabase.co/rest/v1";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhaWlvZ29ubnlyeWhpenh2cHRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0OTA5NjMsImV4cCI6MjEwNDA2Njk2M30.waiyyiAV2Vxkp2r4vgUmsMzNmhvIXWKJaXXrFhnG15k";
 
 // --- BEÉPÍTETT SVG IKONOK ---
 const CheckCircleIcon = ({ size = 20, className = "" }) => (
@@ -67,6 +71,12 @@ const PlusIcon = ({ size = 16, className = "" }) => (
   </svg>
 );
 
+const CloudIcon = ({ size = 14, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" />
+  </svg>
+);
+
 // HÉT NAPJAI MINTASTRUKTÚRA
 const DAYS_OF_WEEK = [
   { key: "2026-08-31", short: "H", label: "Hétfő" },
@@ -96,9 +106,7 @@ const INITIAL_DATA = {
     { id: "t2", date: "2026-09-03", title: "Költségvetési terv áttekintése", type: "BIG3", done: false },
     { id: "t3", date: "2026-09-03", title: "Lakásfelújítási ütemterv véglegesítése", type: "BIG3", done: false },
     { id: "t4", date: "2026-09-03", title: "Heti jelentés elküldése a csapatnak", type: "SCHEDULED", done: true },
-    { id: "t5", date: "2026-09-03", title: "Szűrőbetét csere a konyhában", type: "DAILY5_MINI", done: false },
-    { id: "t6", date: "2026-09-04", title: "Heti záró meeting és kiértékelés", type: "BIG3", done: false },
-    { id: "t7", date: "2026-09-04", title: "Edzésterv áttekintése", type: "SCHEDULED", done: false }
+    { id: "t5", date: "2026-09-03", title: "Szűrőbetét csere a konyhában", type: "DAILY5_MINI", done: false }
   ],
   habits: [
     { id: "h1", title: "Hideg zuhany & légzés", block: "morning" },
@@ -107,7 +115,6 @@ const INITIAL_DATA = {
     { id: "h4", title: "45 perc edzés (Kardió/Erősítés)", block: "fitness" },
     { id: "h5", title: "Képernyőmentes este 21:00 után", block: "evening" }
   ],
-  // Szokásnaplók naponként: habitLogs[datum][habitId] = boolean
   habitLogs: {
     "2026-09-03": { h1: true, h2: true, h3: true, h4: false, h5: false },
     "2026-09-02": { h1: true, h2: true, h3: true, h4: true, h5: true },
@@ -118,49 +125,96 @@ const INITIAL_DATA = {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("today");
-  const [selectedDate, setSelectedDate] = useState("2026-09-03"); // Aktuális fókuszált nap
+  const [selectedDate, setSelectedDate] = useState("2026-09-03");
 
-  const [tasks, setTasks] = useState(() => {
-    const saved = localStorage.getItem("mc_tasks_v2");
-    return saved ? JSON.parse(saved) : INITIAL_DATA.tasks;
-  });
-  const [habits] = useState(INITIAL_DATA.habits);
-  const [habitLogs, setHabitLogs] = useState(() => {
-    const saved = localStorage.getItem("mc_habit_logs");
-    return saved ? JSON.parse(saved) : INITIAL_DATA.habitLogs;
-  });
-  const [sprint, setSprint] = useState(() => {
-    const saved = localStorage.getItem("mc_sprint");
-    return saved ? JSON.parse(saved) : INITIAL_DATA.sprint;
+  const [state, setState] = useState(() => {
+    const saved = localStorage.getItem("mc_cloud_state");
+    return saved ? JSON.parse(saved) : INITIAL_DATA;
   });
 
-  // Beviteli állapotok
+  const [syncStatus, setSyncStatus] = useState("synced"); // "synced" | "saving" | "offline"
+  const isInitialMount = useRef(true);
+
+  // Beviteli mezők állapota
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskType, setNewTaskType] = useState("BIG3");
   const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
   const [newMilestoneDomain, setNewMilestoneDomain] = useState("Otthon & Lakás");
 
+  // 1. BETÖLTÉS A SUPABASE-BŐL INDULÁSKOR
   useEffect(() => {
-    localStorage.setItem("mc_tasks_v2", JSON.stringify(tasks));
-  }, [tasks]);
+    async function loadFromSupabase() {
+      try {
+        const res = await fetch(`${SUPABASE_URL}/app_state?id=eq.primary_user&select=data`, {
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`
+          }
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          if (rows && rows.length > 0 && rows[0].data) {
+            setState(rows[0].data);
+            localStorage.setItem("mc_cloud_state", JSON.stringify(rows[0].data));
+          }
+        }
+      } catch (err) {
+        console.warn("Supabase nem elérhető, helyi adatok betöltve.", err);
+      }
+    }
+    loadFromSupabase();
+  }, []);
 
+  // 2. VALÓS IDEJŰ MENTÉS FELHŐBE ÉS LOCALSTORAGE-BA
   useEffect(() => {
-    localStorage.setItem("mc_habit_logs", JSON.stringify(habitLogs));
-  }, [habitLogs]);
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
 
-  useEffect(() => {
-    localStorage.setItem("mc_sprint", JSON.stringify(sprint));
-  }, [sprint]);
+    localStorage.setItem("mc_cloud_state", JSON.stringify(state));
+    setSyncStatus("saving");
 
-  // Napi feladatok szűrése a kiválasztott dátum alapján
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`${SUPABASE_URL}/app_state`, {
+          method: "POST",
+          headers: {
+            apikey: SUPABASE_KEY,
+            Authorization: `Bearer ${SUPABASE_KEY}`,
+            "Content-Type": "application/json",
+            Prefer: "resolution=merge-duplicates"
+          },
+          body: JSON.stringify({
+            id: "primary_user",
+            data: state,
+            updated_at: new Date().toISOString()
+          })
+        });
+
+        if (res.ok) {
+          setSyncStatus("synced");
+        } else {
+          setSyncStatus("offline");
+        }
+      } catch {
+        setSyncStatus("offline");
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [state]);
+
+  const { sprint, tasks, habits, habitLogs } = state;
+
+  // Napi feladatok szűrése
   const currentDayTasks = tasks.filter((t) => (t.date || "2026-09-03") === selectedDate);
   const scoredTasks = currentDayTasks.filter((t) => t.type === "BIG3" || t.type === "SCHEDULED");
   const completedScored = scoredTasks.filter((t) => t.done).length;
   const taskProgressPct = scoredTasks.length > 0 ? Math.round((completedScored / scoredTasks.length) * 100) : 0;
 
-  // Szokás-teljesülés adott napra
-  const isHabitDone = (dateKey, habitId) => !!habitLogs[dateKey]?.[habitId];
-
+  // Szokás-teljesülés
+  const isHabitDone = (dateKey, habitId) => !!habitLogs?.[dateKey]?.[habitId];
   const morningHabits = habits.filter((h) => h.block === "morning");
   const isMorningComplete = morningHabits.length > 0 && morningHabits.every((h) => isHabitDone(selectedDate, h.id));
 
@@ -168,42 +222,57 @@ export default function App() {
   const completedMilestones = sprint.milestones.filter((m) => m.done).length;
   const sprintProgressPct = sprint.milestones.length > 0 ? Math.round((completedMilestones / sprint.milestones.length) * 100) : 0;
 
-  // Eseménykezelők
+  // Műveletkezelők
   const toggleTask = (id) => {
-    setTasks(tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+    setState((prev) => ({
+      ...prev,
+      tasks: prev.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t))
+    }));
   };
 
   const deleteTask = (id, e) => {
     e.stopPropagation();
-    setTasks(tasks.filter((t) => t.id !== id));
+    setState((prev) => ({
+      ...prev,
+      tasks: prev.tasks.filter((t) => t.id !== id)
+    }));
   };
 
   const toggleHabit = (dateKey, habitId) => {
-    setHabitLogs((prev) => {
-      const day = prev[dateKey] || {};
+    setState((prev) => {
+      const day = prev.habitLogs?.[dateKey] || {};
       return {
         ...prev,
-        [dateKey]: {
-          ...day,
-          [habitId]: !day[habitId]
+        habitLogs: {
+          ...prev.habitLogs,
+          [dateKey]: {
+            ...day,
+            [habitId]: !day[habitId]
+          }
         }
       };
     });
   };
 
   const toggleMilestone = (id) => {
-    setSprint({
-      ...sprint,
-      milestones: sprint.milestones.map((m) => (m.id === id ? { ...m, done: !m.done } : m))
-    });
+    setState((prev) => ({
+      ...prev,
+      sprint: {
+        ...prev.sprint,
+        milestones: prev.sprint.milestones.map((m) => (m.id === id ? { ...m, done: !m.done } : m))
+      }
+    }));
   };
 
   const deleteMilestone = (id, e) => {
     e.stopPropagation();
-    setSprint({
-      ...sprint,
-      milestones: sprint.milestones.filter((m) => m.id !== id)
-    });
+    setState((prev) => ({
+      ...prev,
+      sprint: {
+        ...prev.sprint,
+        milestones: prev.sprint.milestones.filter((m) => m.id !== id)
+      }
+    }));
   };
 
   const handleAddTask = (e) => {
@@ -216,7 +285,10 @@ export default function App() {
       type: newTaskType,
       done: false
     };
-    setTasks([newTask, ...tasks]);
+    setState((prev) => ({
+      ...prev,
+      tasks: [newTask, ...prev.tasks]
+    }));
     setNewTaskTitle("");
   };
 
@@ -229,20 +301,32 @@ export default function App() {
       domain: newMilestoneDomain,
       done: false
     };
-    setSprint({
-      ...sprint,
-      milestones: [...sprint.milestones, newM]
-    });
+    setState((prev) => ({
+      ...prev,
+      sprint: {
+        ...prev.sprint,
+        milestones: [...prev.sprint.milestones, newM]
+      }
+    }));
     setNewMilestoneTitle("");
   };
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 max-w-md mx-auto font-sans pb-24 select-none">
       
-      {/* FEJLÉC */}
+      {/* FEJLÉC ÉS FELHŐ SZINKRON ÁLLAPOT */}
       <header className="p-4 border-b border-slate-800/80 bg-slate-900/50 backdrop-blur sticky top-0 z-20 flex justify-between items-center">
         <div>
-          <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Mission Control</span>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Mission Control</span>
+            <div className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${
+              syncStatus === "synced" ? "bg-emerald-500/10 text-emerald-400" :
+              syncStatus === "saving" ? "bg-amber-500/10 text-amber-400 animate-pulse" : "bg-red-500/10 text-red-400"
+            }`}>
+              <CloudIcon size={12} />
+              <span>{syncStatus === "synced" ? "Szinkronban" : syncStatus === "saving" ? "Mentés..." : "Offline"}</span>
+            </div>
+          </div>
           <h1 className="text-lg font-bold tracking-tight">
             {DAYS_OF_WEEK.find((d) => d.key === selectedDate)?.label}, {selectedDate}
           </h1>
@@ -287,13 +371,13 @@ export default function App() {
         })}
       </div>
 
-      {/* FŐ TARTALMI BLOKK */}
+      {/* FŐ TARTALOM */}
       <main className="p-4 space-y-5 flex-1">
         
         {/* 1. MA / NAPI NÉZET */}
         {activeTab === "today" && (
           <>
-            {/* KÖRDIAGRAM ÉS STATISZTIKA */}
+            {/* KÖRDIAGRAM */}
             <section className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center gap-5 shadow-lg shadow-black/20">
               <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
                 <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
@@ -327,7 +411,7 @@ export default function App() {
               </div>
             </section>
 
-            {/* GYORS BEVITEL (Kiválasztott napra) */}
+            {/* GYORS BEVITEL */}
             <form onSubmit={handleAddTask} className="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2.5 shadow-sm">
               <div className="flex gap-2">
                 <input
@@ -386,7 +470,7 @@ export default function App() {
             {/* BIG 3 BLOKK */}
             <section className="space-y-2">
               <h2 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5 px-1">
-                <TargetIcon size={14} /> Big 3 prioritás ({selectedDate})
+                <TargetIcon size={14} /> Big 3 prioritás
               </h2>
               <div className="space-y-2">
                 {currentDayTasks.filter((t) => t.type === "BIG3").map((task) => (
@@ -555,17 +639,17 @@ export default function App() {
           </>
         )}
 
-        {/* 2. HÉT (WEEK) TAB - NAPTÁR ÉS SZOKÁSMÁTRIX */}
+        {/* 2. HÉT TAB */}
         {activeTab === "week" && (
           <div className="space-y-5">
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2">
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Heti Áttekintés</span>
               <p className="text-xs text-slate-300">
-                Kattints egy napra a felső naptársávban az adott nap teendőinek megtekintéséhez, vagy nézd át a szokások heti mátrixát[span_6](start_span)[span_6](end_span)!
+                Kattints egy napra a felső naptársávban az adott nap teendőinek szerkesztéséhez, vagy nézd át a szokások heti mátrixát!
               </p>
             </div>
 
-            {/* SZOKÁS HŐTÉRKÉP / MÁTRIX */}
+            {/* SZOKÁS MÁTRIX */}
             <section className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Szokások Heti Mátrixa</span>
@@ -581,7 +665,6 @@ export default function App() {
                         {DAYS_OF_WEEK.filter((d) => isHabitDone(d.key, habit.id)).length} / 7
                       </span>
                     </div>
-                    {/* A hét 7 napjának állapota pöttyökkel */}
                     <div className="grid grid-cols-7 gap-1.5">
                       {DAYS_OF_WEEK.map((d) => {
                         const done = isHabitDone(d.key, habit.id);
@@ -605,7 +688,7 @@ export default function App() {
               </div>
             </section>
 
-            {/* HETI FELADAT-ÖSSZESÍTŐ NAPTÁRNÉZET */}
+            {/* HETI NAPOK GYORS MEZŐI */}
             <section className="space-y-2">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">Heti Fókuszpontok</span>
               <div className="space-y-2">
@@ -742,9 +825,9 @@ export default function App() {
             <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
               <span className="text-xs font-bold text-emerald-400">Egészség & Fitnesz</span>
               <div className="text-xs space-y-1 text-slate-300">
-                <p><span className="text-red-400 font-medium">Pokol képe:</span> Kimerültség, kihagyott edzések, energiátlan esték[span_7](start_span)[span_7](end_span).</p>
-                <p><span className="text-emerald-400 font-medium">Ideális kép:</span> Szálkás, energikus fizikum, napi szintű vitalitás[span_8](start_span)[span_8](end_span).</p>
-                <p><span className="text-amber-400 font-medium">Következő NAGY cél:</span> Stabil 10 hetes edzésciklus lefutása sérülés nélkül[span_9](start_span)[span_9](end_span).</p>
+                <p><span className="text-red-400 font-medium">Pokol képe:</span> Kimerültség, kihagyott edzések, energiátlan esték.</p>
+                <p><span className="text-emerald-400 font-medium">Ideális kép:</span> Szálkás, energikus fizikum, napi szintű vitalitás.</p>
+                <p><span className="text-amber-400 font-medium">Következő NAGY cél:</span> Stabil 10 hetes edzésciklus lefutása sérülés nélkül.</p>
               </div>
             </div>
           </div>
@@ -752,7 +835,7 @@ export default function App() {
 
       </main>
 
-      {/* ALSÓ MENÜSÁV - 4 MENÜPONT */}
+      {/* ALSÓ MENÜSÁV */}
       <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-slate-900/90 backdrop-blur border-t border-slate-800 px-4 py-2.5 flex justify-around items-center z-30">
         <button 
           onClick={() => setActiveTab("today")}
