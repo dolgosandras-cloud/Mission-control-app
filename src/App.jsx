@@ -160,50 +160,75 @@ export default function App() {
         setState(data.data);
         localStorage.setItem("mc_cloud_state", JSON.stringify(data.data));
       } else if (!data) {
-        // Első inicializálás ha még üres a tábla
+      // 1. KEZDETI BETÖLTÉS, ÉLŐ WEBSOCKET ÉS PERIODIKUS ELLENŐRZÉS
+  useEffect(() => {
+    async function loadLatestData() {
+      const { data, error } = await supabase
+        .from("app_state")
+        .select("data, updated_at")
+        .eq("id", "primary_user")
+        .maybeSingle();
+
+      if (!error && data?.data) {
+        setState((current) => {
+          // Csak akkor írjuk felül, ha valóban változott valami
+          if (JSON.stringify(current) !== JSON.stringify(data.data)) {
+            isInternalUpdate.current = true;
+            localStorage.setItem("mc_cloud_state", JSON.stringify(data.data));
+            return data.data;
+          }
+          return current;
+        });
+        setSyncStatus("synced");
+      }
+    }
+
+    loadInitial();
+    async function loadInitial() {
+      const { data } = await supabase
+        .from("app_state")
+        .select("data")
+        .eq("id", "primary_user")
+        .maybeSingle();
+
+      if (data?.data) {
+        isInternalUpdate.current = true;
+        setState(data.data);
+        localStorage.setItem("mc_cloud_state", JSON.stringify(data.data));
+      } else if (!data) {
         await supabase
           .from("app_state")
           .upsert({ id: "primary_user", data: INITIAL_DATA });
       }
     }
-    loadInitial();
 
-    // Valós idejű WebSocket feliratkozás (változás figyelése más eszközökről)
+    // A) Valós idejű WebSocket eseményfigyelő
     const channel = supabase
-      .channel("realtime-app-state")
+      .channel("realtime-app-state-v2")
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
-          table: "app_state",
-          filter: "id=eq.primary_user"
+          table: "app_state"
         },
-        (payload) => {
-          if (payload.new && payload.new.data) {
-            isInternalUpdate.current = true;
-            setState(payload.new.data);
-            localStorage.setItem("mc_cloud_state", JSON.stringify(payload.new.data));
-            setSyncStatus("synced");
-          }
+        () => {
+          // Amint esemény jön a szervertől, azonnal lekérjük a legfrissebbet
+          loadLatestData();
         }
       )
       .subscribe();
 
+    // B) Periodikus háttér-szinkronizáció (3 másodpercenként csendben ellenőrzi)
+    const interval = setInterval(() => {
+      loadLatestData();
+    }, 3000);
+
     return () => {
       supabase.removeChannel(channel);
+      clearInterval(interval);
     };
   }, []);
-
-  // 2. HELYI VÁLTOZTATÁSOK KÜLDÉSE A FELHŐBE
-  useEffect(() => {
-    if (isInternalUpdate.current) {
-      isInternalUpdate.current = false;
-      return;
-    }
-
-    localStorage.setItem("mc_cloud_state", JSON.stringify(state));
-    setSyncStatus("saving");
 
     const timer = setTimeout(async () => {
       const { error } = await supabase
