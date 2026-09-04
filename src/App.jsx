@@ -1,8 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
 
 // --- SUPABASE KONFIGURÁCIÓ ---
-const SUPABASE_URL = "https://waiiogonnyryhizxvptm.supabase.co/rest/v1";
+const SUPABASE_BASE = "https://waiiogonnyryhizxvptm.supabase.co/rest/v1";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhaWlvZ29ubnlyeWhpenh2cHRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0OTA5NjMsImV4cCI6MjEwNDA2Njk2M30.waiyyiAV2Vxkp2r4vgUmsMzNmhvIXWKJaXXrFhnG15k";
+
+const HEADERS = {
+  apikey: SUPABASE_KEY,
+  Authorization: `Bearer ${SUPABASE_KEY}`,
+  "Content-Type": "application/json"
+};
 
 // --- BEÉPÍTETT SVG IKONOK ---
 const CheckCircleIcon = ({ size = 20, className = "" }) => (
@@ -125,7 +131,7 @@ const INITIAL_DATA = {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("today");
-  const [selectedDate, setSelectedDate] = useState("2026-09-03");
+  const [selectedDate, setSelectedDate] = useState("2026-09-04");
 
   const [state, setState] = useState(() => {
     const saved = localStorage.getItem("mc_cloud_state");
@@ -133,39 +139,52 @@ export default function App() {
   });
 
   const [syncStatus, setSyncStatus] = useState("synced"); // "synced" | "saving" | "offline"
+  const [errorMessage, setErrorMessage] = useState(null);
   const isInitialMount = useRef(true);
 
-  // Beviteli mezők állapota
+  // Beviteli mezők
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskType, setNewTaskType] = useState("BIG3");
   const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
   const [newMilestoneDomain, setNewMilestoneDomain] = useState("Otthon & Lakás");
 
-  // 1. BETÖLTÉS A SUPABASE-BŐL INDULÁSKOR
+  // 1. ADATOK BETÖLTÉSE A SUPABASE-BŐL
   useEffect(() => {
-    async function loadFromSupabase() {
+    async function loadData() {
       try {
-        const res = await fetch(`${SUPABASE_URL}/app_state?id=eq.primary_user&select=data`, {
-          headers: {
-            apikey: SUPABASE_KEY,
-            Authorization: `Bearer ${SUPABASE_KEY}`
-          }
+        const res = await fetch(`${SUPABASE_BASE}/app_state?id=eq.primary_user&select=data`, {
+          headers: HEADERS
         });
         if (res.ok) {
           const rows = await res.json();
           if (rows && rows.length > 0 && rows[0].data) {
             setState(rows[0].data);
             localStorage.setItem("mc_cloud_state", JSON.stringify(rows[0].data));
+            setSyncStatus("synced");
+            setErrorMessage(null);
+          } else {
+            // Még nincs sor az adatbázisban, létrehozzuk az elsőt
+            await fetch(`${SUPABASE_BASE}/app_state`, {
+              method: "POST",
+              headers: HEADERS,
+              body: JSON.stringify({ id: "primary_user", data: INITIAL_DATA })
+            });
+            setSyncStatus("synced");
           }
+        } else {
+          const text = await res.text();
+          setErrorMessage(`Betöltési hiba (${res.status}): ${text}`);
+          setSyncStatus("offline");
         }
       } catch (err) {
-        console.warn("Supabase nem elérhető, helyi adatok betöltve.", err);
+        setErrorMessage(`Hálózati hiba betöltéskor: ${err.message}`);
+        setSyncStatus("offline");
       }
     }
-    loadFromSupabase();
+    loadData();
   }, []);
 
-  // 2. VALÓS IDEJŰ MENTÉS FELHŐBE ÉS LOCALSTORAGE-BA
+  // 2. MENTÉS A SUPABASE-BE (PATCH -> ha nincs, POST)
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -177,52 +196,67 @@ export default function App() {
 
     const timer = setTimeout(async () => {
       try {
-        const res = await fetch(`${SUPABASE_URL}/app_state`, {
-          method: "POST",
+        // Próbáljuk módosítani a meglévő sort
+        let res = await fetch(`${SUPABASE_BASE}/app_state?id=eq.primary_user`, {
+          method: "PATCH",
           headers: {
-            apikey: SUPABASE_KEY,
-            Authorization: `Bearer ${SUPABASE_KEY}`,
-            "Content-Type": "application/json",
-            Prefer: "resolution=merge-duplicates"
+            ...HEADERS,
+            Prefer: "return=representation"
           },
           body: JSON.stringify({
-            id: "primary_user",
             data: state,
             updated_at: new Date().toISOString()
           })
         });
 
+        // Ha a sor még nem létezett (üres válasz), beszúrjuk
+        if (res.ok) {
+          const updated = await res.json();
+          if (!updated || updated.length === 0) {
+            res = await fetch(`${SUPABASE_BASE}/app_state`, {
+              method: "POST",
+              headers: HEADERS,
+              body: JSON.stringify({
+                id: "primary_user",
+                data: state,
+                updated_at: new Date().toISOString()
+              })
+            });
+          }
+        }
+
         if (res.ok) {
           setSyncStatus("synced");
+          setErrorMessage(null);
         } else {
+          const text = await res.text();
+          setErrorMessage(`Mentési hiba (${res.status}): ${text}`);
           setSyncStatus("offline");
         }
-      } catch {
+      } catch (err) {
+        setErrorMessage(`Mentési hiba: ${err.message}`);
         setSyncStatus("offline");
       }
-    }, 400);
+    }, 500);
 
     return () => clearTimeout(timer);
   }, [state]);
 
   const { sprint, tasks, habits, habitLogs } = state;
 
-  // Napi feladatok szűrése
-  const currentDayTasks = tasks.filter((t) => (t.date || "2026-09-03") === selectedDate);
+  const currentDayTasks = tasks.filter((t) => (t.date || "2026-09-04") === selectedDate);
   const scoredTasks = currentDayTasks.filter((t) => t.type === "BIG3" || t.type === "SCHEDULED");
   const completedScored = scoredTasks.filter((t) => t.done).length;
   const taskProgressPct = scoredTasks.length > 0 ? Math.round((completedScored / scoredTasks.length) * 100) : 0;
 
-  // Szokás-teljesülés
   const isHabitDone = (dateKey, habitId) => !!habitLogs?.[dateKey]?.[habitId];
   const morningHabits = habits.filter((h) => h.block === "morning");
   const isMorningComplete = morningHabits.length > 0 && morningHabits.every((h) => isHabitDone(selectedDate, h.id));
 
-  // Sprint teljesülés
   const completedMilestones = sprint.milestones.filter((m) => m.done).length;
   const sprintProgressPct = sprint.milestones.length > 0 ? Math.round((completedMilestones / sprint.milestones.length) * 100) : 0;
 
-  // Műveletkezelők
+  // Műveletek
   const toggleTask = (id) => {
     setState((prev) => ({
       ...prev,
@@ -314,7 +348,7 @@ export default function App() {
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 max-w-md mx-auto font-sans pb-24 select-none">
       
-      {/* FEJLÉC ÉS FELHŐ SZINKRON ÁLLAPOT */}
+      {/* FEJLÉC ÉS STÁTUSZ */}
       <header className="p-4 border-b border-slate-800/80 bg-slate-900/50 backdrop-blur sticky top-0 z-20 flex justify-between items-center">
         <div>
           <div className="flex items-center gap-2">
@@ -336,6 +370,13 @@ export default function App() {
           <span>7 Napos Streak</span>
         </div>
       </header>
+
+      {/* HIBAÜZENET SÁV (CSAK HA HIBA VAN) */}
+      {errorMessage && (
+        <div className="bg-red-950/80 border-b border-red-800 p-2.5 text-[11px] text-red-200 break-words">
+          <strong>Hiba:</strong> {errorMessage}
+        </div>
+      )}
 
       {/* VÍZSZINTES HETI NAPTÁRSÁV */}
       <div className="bg-slate-900/80 border-b border-slate-800 px-3 py-2.5 flex justify-between gap-1.5 overflow-x-auto">
@@ -374,10 +415,9 @@ export default function App() {
       {/* FŐ TARTALOM */}
       <main className="p-4 space-y-5 flex-1">
         
-        {/* 1. MA / NAPI NÉZET */}
+        {/* 1. MA TAB */}
         {activeTab === "today" && (
           <>
-            {/* KÖRDIAGRAM */}
             <section className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex items-center gap-5 shadow-lg shadow-black/20">
               <div className="relative w-20 h-20 flex items-center justify-center shrink-0">
                 <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
@@ -645,7 +685,7 @@ export default function App() {
             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-2">
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Heti Áttekintés</span>
               <p className="text-xs text-slate-300">
-                Kattints egy napra a felső naptársávban az adott nap teendőinek szerkesztéséhez, vagy nézd át a szokások heti mátrixát!
+                Kattints egy napra a felső naptársávban az adott nap teendőinek szerkesztéséhez!
               </p>
             </div>
 
@@ -688,7 +728,6 @@ export default function App() {
               </div>
             </section>
 
-            {/* HETI NAPOK GYORS MEZŐI */}
             <section className="space-y-2">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">Heti Fókuszpontok</span>
               <div className="space-y-2">
