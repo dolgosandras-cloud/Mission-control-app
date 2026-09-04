@@ -1,14 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
 
 // --- SUPABASE KONFIGURÁCIÓ ---
-const SUPABASE_BASE = "https://waiiogonnyryhizxvptm.supabase.co/rest/v1";
+const SUPABASE_URL = "https://waiiogonnyryhizxvptm.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhaWlvZ29ubnlyeWhpenh2cHRtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg0OTA5NjMsImV4cCI6MjEwNDA2Njk2M30.waiyyiAV2Vxkp2r4vgUmsMzNmhvIXWKJaXXrFhnG15k";
 
-const HEADERS = {
-  apikey: SUPABASE_KEY,
-  Authorization: `Bearer ${SUPABASE_KEY}`,
-  "Content-Type": "application/json"
-};
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // --- BEÉPÍTETT SVG IKONOK ---
 const CheckCircleIcon = ({ size = 20, className = "" }) => (
@@ -83,7 +80,7 @@ const CloudIcon = ({ size = 14, className = "" }) => (
   </svg>
 );
 
-// HÉT NAPJAI MINTASTRUKTÚRA
+// HÉT NAPJAI
 const DAYS_OF_WEEK = [
   { key: "2026-08-31", short: "H", label: "Hétfő" },
   { key: "2026-09-01", short: "K", label: "Kedd" },
@@ -108,11 +105,11 @@ const INITIAL_DATA = {
     ]
   },
   tasks: [
-    { id: "t1", date: "2026-09-03", title: "Heti mérföldkő összefoglaló lezárása", type: "BIG3", done: true },
-    { id: "t2", date: "2026-09-03", title: "Költségvetési terv áttekintése", type: "BIG3", done: false },
-    { id: "t3", date: "2026-09-03", title: "Lakásfelújítási ütemterv véglegesítése", type: "BIG3", done: false },
-    { id: "t4", date: "2026-09-03", title: "Heti jelentés elküldése a csapatnak", type: "SCHEDULED", done: true },
-    { id: "t5", date: "2026-09-03", title: "Szűrőbetét csere a konyhában", type: "DAILY5_MINI", done: false }
+    { id: "t1", date: "2026-09-04", title: "Heti mérföldkő összefoglaló lezárása", type: "BIG3", done: true },
+    { id: "t2", date: "2026-09-04", title: "Költségvetési terv áttekintése", type: "BIG3", done: false },
+    { id: "t3", date: "2026-09-04", title: "Lakásfelújítási ütemterv véglegesítése", type: "BIG3", done: false },
+    { id: "t4", date: "2026-09-04", title: "Heti jelentés elküldése a csapatnak", type: "SCHEDULED", done: true },
+    { id: "t5", date: "2026-09-04", title: "Szűrőbetét csere a konyhában", type: "DAILY5_MINI", done: false }
   ],
   habits: [
     { id: "h1", title: "Hideg zuhany & légzés", block: "morning" },
@@ -122,6 +119,7 @@ const INITIAL_DATA = {
     { id: "h5", title: "Képernyőmentes este 21:00 után", block: "evening" }
   ],
   habitLogs: {
+    "2026-09-04": { h1: true, h2: true, h3: true, h4: false, h5: false },
     "2026-09-03": { h1: true, h2: true, h3: true, h4: false, h5: false },
     "2026-09-02": { h1: true, h2: true, h3: true, h4: true, h5: true },
     "2026-09-01": { h1: true, h2: false, h3: true, h4: true, h5: false },
@@ -138,9 +136,8 @@ export default function App() {
     return saved ? JSON.parse(saved) : INITIAL_DATA;
   });
 
-  const [syncStatus, setSyncStatus] = useState("synced"); // "synced" | "saving" | "offline"
-  const [errorMessage, setErrorMessage] = useState(null);
-  const isInitialMount = useRef(true);
+  const [syncStatus, setSyncStatus] = useState("synced");
+  const isInternalUpdate = useRef(false);
 
   // Beviteli mezők
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -148,46 +145,60 @@ export default function App() {
   const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
   const [newMilestoneDomain, setNewMilestoneDomain] = useState("Otthon & Lakás");
 
-  // 1. ADATOK BETÖLTÉSE A SUPABASE-BŐL
+  // 1. KEZDETI BETÖLTÉS ÉS ÉLŐ WEBSOCKET FELIRATKOZÁS
   useEffect(() => {
-    async function loadData() {
-      try {
-        const res = await fetch(`${SUPABASE_BASE}/app_state?id=eq.primary_user&select=data`, {
-          headers: HEADERS
-        });
-        if (res.ok) {
-          const rows = await res.json();
-          if (rows && rows.length > 0 && rows[0].data) {
-            setState(rows[0].data);
-            localStorage.setItem("mc_cloud_state", JSON.stringify(rows[0].data));
-            setSyncStatus("synced");
-            setErrorMessage(null);
-          } else {
-            // Még nincs sor az adatbázisban, létrehozzuk az elsőt
-            await fetch(`${SUPABASE_BASE}/app_state`, {
-              method: "POST",
-              headers: HEADERS,
-              body: JSON.stringify({ id: "primary_user", data: INITIAL_DATA })
-            });
-            setSyncStatus("synced");
-          }
-        } else {
-          const text = await res.text();
-          setErrorMessage(`Betöltési hiba (${res.status}): ${text}`);
-          setSyncStatus("offline");
-        }
-      } catch (err) {
-        setErrorMessage(`Hálózati hiba betöltéskor: ${err.message}`);
-        setSyncStatus("offline");
+    // Kezdeti lekérés
+    async function loadInitial() {
+      const { data, error } = await supabase
+        .from("app_state")
+        .select("data")
+        .eq("id", "primary_user")
+        .maybeSingle();
+
+      if (!error && data?.data) {
+        isInternalUpdate.current = true;
+        setState(data.data);
+        localStorage.setItem("mc_cloud_state", JSON.stringify(data.data));
+      } else if (!data) {
+        // Első inicializálás ha még üres a tábla
+        await supabase
+          .from("app_state")
+          .upsert({ id: "primary_user", data: INITIAL_DATA });
       }
     }
-    loadData();
+    loadInitial();
+
+    // Valós idejű WebSocket feliratkozás (változás figyelése más eszközökről)
+    const channel = supabase
+      .channel("realtime-app-state")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "app_state",
+          filter: "id=eq.primary_user"
+        },
+        (payload) => {
+          if (payload.new && payload.new.data) {
+            isInternalUpdate.current = true;
+            setState(payload.new.data);
+            localStorage.setItem("mc_cloud_state", JSON.stringify(payload.new.data));
+            setSyncStatus("synced");
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  // 2. MENTÉS A SUPABASE-BE (PATCH -> ha nincs, POST)
+  // 2. HELYI VÁLTOZTATÁSOK KÜLDÉSE A FELHŐBE
   useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
+    if (isInternalUpdate.current) {
+      isInternalUpdate.current = false;
       return;
     }
 
@@ -195,49 +206,20 @@ export default function App() {
     setSyncStatus("saving");
 
     const timer = setTimeout(async () => {
-      try {
-        // Próbáljuk módosítani a meglévő sort
-        let res = await fetch(`${SUPABASE_BASE}/app_state?id=eq.primary_user`, {
-          method: "PATCH",
-          headers: {
-            ...HEADERS,
-            Prefer: "return=representation"
-          },
-          body: JSON.stringify({
-            data: state,
-            updated_at: new Date().toISOString()
-          })
+      const { error } = await supabase
+        .from("app_state")
+        .upsert({
+          id: "primary_user",
+          data: state,
+          updated_at: new Date().toISOString()
         });
 
-        // Ha a sor még nem létezett (üres válasz), beszúrjuk
-        if (res.ok) {
-          const updated = await res.json();
-          if (!updated || updated.length === 0) {
-            res = await fetch(`${SUPABASE_BASE}/app_state`, {
-              method: "POST",
-              headers: HEADERS,
-              body: JSON.stringify({
-                id: "primary_user",
-                data: state,
-                updated_at: new Date().toISOString()
-              })
-            });
-          }
-        }
-
-        if (res.ok) {
-          setSyncStatus("synced");
-          setErrorMessage(null);
-        } else {
-          const text = await res.text();
-          setErrorMessage(`Mentési hiba (${res.status}): ${text}`);
-          setSyncStatus("offline");
-        }
-      } catch (err) {
-        setErrorMessage(`Mentési hiba: ${err.message}`);
+      if (!error) {
+        setSyncStatus("synced");
+      } else {
         setSyncStatus("offline");
       }
-    }, 500);
+    }, 400);
 
     return () => clearTimeout(timer);
   }, [state]);
@@ -348,7 +330,7 @@ export default function App() {
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 max-w-md mx-auto font-sans pb-24 select-none">
       
-      {/* FEJLÉC ÉS STÁTUSZ */}
+      {/* FEJLÉC ÉS ÉLŐ KAPCSOLAT ÁLLAPOT */}
       <header className="p-4 border-b border-slate-800/80 bg-slate-900/50 backdrop-blur sticky top-0 z-20 flex justify-between items-center">
         <div>
           <div className="flex items-center gap-2">
@@ -358,7 +340,7 @@ export default function App() {
               syncStatus === "saving" ? "bg-amber-500/10 text-amber-400 animate-pulse" : "bg-red-500/10 text-red-400"
             }`}>
               <CloudIcon size={12} />
-              <span>{syncStatus === "synced" ? "Szinkronban" : syncStatus === "saving" ? "Mentés..." : "Offline"}</span>
+              <span>{syncStatus === "synced" ? "Élő szinkron" : syncStatus === "saving" ? "Mentés..." : "Offline"}</span>
             </div>
           </div>
           <h1 className="text-lg font-bold tracking-tight">
@@ -370,13 +352,6 @@ export default function App() {
           <span>7 Napos Streak</span>
         </div>
       </header>
-
-      {/* HIBAÜZENET SÁV (CSAK HA HIBA VAN) */}
-      {errorMessage && (
-        <div className="bg-red-950/80 border-b border-red-800 p-2.5 text-[11px] text-red-200 break-words">
-          <strong>Hiba:</strong> {errorMessage}
-        </div>
-      )}
 
       {/* VÍZSZINTES HETI NAPTÁRSÁV */}
       <div className="bg-slate-900/80 border-b border-slate-800 px-3 py-2.5 flex justify-between gap-1.5 overflow-x-auto">
