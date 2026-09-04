@@ -145,81 +145,53 @@ export default function App() {
   const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
   const [newMilestoneDomain, setNewMilestoneDomain] = useState("Otthon & Lakás");
 
-  // 1. KEZDETI BETÖLTÉS ÉS ÉLŐ WEBSOCKET FELIRATKOZÁS
-  useEffect(() => {
-    // Kezdeti lekérés
-    async function loadInitial() {
-      const { data, error } = await supabase
-        .from("app_state")
-        .select("data")
-        .eq("id", "primary_user")
-        .maybeSingle();
-
-      if (!error && data?.data) {
-        isInternalUpdate.current = true;
-        setState(data.data);
-        localStorage.setItem("mc_cloud_state", JSON.stringify(data.data));
-      } else if (!data) {
-      // 1. KEZDETI BETÖLTÉS, ÉLŐ WEBSOCKET ÉS PERIODIKUS ELLENŐRZÉS
+  // 1. KEZDETI BETÖLTÉS ÉS VALÓS IDEJŰ WEBSOCKET / FALLBACK
   useEffect(() => {
     async function loadLatestData() {
-      const { data, error } = await supabase
-        .from("app_state")
-        .select("data, updated_at")
-        .eq("id", "primary_user")
-        .maybeSingle();
-
-      if (!error && data?.data) {
-        setState((current) => {
-          // Csak akkor írjuk felül, ha valóban változott valami
-          if (JSON.stringify(current) !== JSON.stringify(data.data)) {
-            isInternalUpdate.current = true;
-            localStorage.setItem("mc_cloud_state", JSON.stringify(data.data));
-            return data.data;
-          }
-          return current;
-        });
-        setSyncStatus("synced");
-      }
-    }
-
-    loadInitial();
-    async function loadInitial() {
-      const { data } = await supabase
-        .from("app_state")
-        .select("data")
-        .eq("id", "primary_user")
-        .maybeSingle();
-
-      if (data?.data) {
-        isInternalUpdate.current = true;
-        setState(data.data);
-        localStorage.setItem("mc_cloud_state", JSON.stringify(data.data));
-      } else if (!data) {
-        await supabase
+      try {
+        const { data, error } = await supabase
           .from("app_state")
-          .upsert({ id: "primary_user", data: INITIAL_DATA });
+          .select("data")
+          .eq("id", "primary_user")
+          .maybeSingle();
+
+        if (!error && data?.data) {
+          setState((current) => {
+            if (JSON.stringify(current) !== JSON.stringify(data.data)) {
+              isInternalUpdate.current = true;
+              localStorage.setItem("mc_cloud_state", JSON.stringify(data.data));
+              return data.data;
+            }
+            return current;
+          });
+          setSyncStatus("synced");
+        }
+      } catch (err) {
+        console.warn("Hiba a lekéréskor:", err);
       }
     }
 
-    // A) Valós idejű WebSocket eseményfigyelő
+    // Kezdeti lekérés
+    loadLatestData();
+
+    // WebSocket csatorna figyelése
     const channel = supabase
-      .channel("realtime-app-state-v2")
+      .channel("realtime-app-state-v3")
       .on(
         "postgres_changes",
         {
           event: "*",
           schema: "public",
-          table: "app_state"
+          table: "app_state",
+          filter: "id=eq.primary_user"
         },
         () => {
-          // Amint esemény jön a szervertől, azonnal lekérjük a legfrissebbet
           loadLatestData();
         }
       )
       .subscribe();
 
-    // B) Periodikus háttér-szinkronizáció (3 másodpercenként csendben ellenőrzi)
+    // 3 másodperces csendes ellenőrzés
     const interval = setInterval(() => {
       loadLatestData();
     }, 3000);
@@ -230,18 +202,32 @@ export default function App() {
     };
   }, []);
 
-    const timer = setTimeout(async () => {
-      const { error } = await supabase
-        .from("app_state")
-        .upsert({
-          id: "primary_user",
-          data: state,
-          updated_at: new Date().toISOString()
-        });
+  // 2. HELYI VÁLTOZTATÁSOK KÜLDÉSE A FELHŐBE
+  useEffect(() => {
+    if (isInternalUpdate.current) {
+      isInternalUpdate.current = false;
+      return;
+    }
 
-      if (!error) {
-        setSyncStatus("synced");
-      } else {
+    localStorage.setItem("mc_cloud_state", JSON.stringify(state));
+    setSyncStatus("saving");
+
+    const timer = setTimeout(async () => {
+      try {
+        const { error } = await supabase
+          .from("app_state")
+          .upsert({
+            id: "primary_user",
+            data: state,
+            updated_at: new Date().toISOString()
+          });
+
+        if (!error) {
+          setSyncStatus("synced");
+        } else {
+          setSyncStatus("offline");
+        }
+      } catch {
         setSyncStatus("offline");
       }
     }, 400);
