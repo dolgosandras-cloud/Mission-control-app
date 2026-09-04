@@ -83,6 +83,13 @@ const CloudIcon = ({ size = 14, className = "" }) => (
   </svg>
 );
 
+const EditIcon = ({ size = 15, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+  </svg>
+);
+
 // HÉT NAPJAI
 const DAYS_OF_WEEK = [
   { key: "2026-08-31", short: "H", label: "Hétfő" },
@@ -94,6 +101,7 @@ const DAYS_OF_WEEK = [
   { key: "2026-09-06", short: "V", label: "Vasárnap" }
 ];
 
+// INITIAL DATA A 7 ÉLETTERÜLETTEL
 const INITIAL_DATA = {
   sprint: {
     id: "sprint-1",
@@ -101,17 +109,17 @@ const INITIAL_DATA = {
     totalWeeks: 6,
     currentWeek: 2,
     milestones: [
-      { id: "m1", title: "Lakásfelújítási anyagok megrendelése", domain: "Otthon & Lakás", done: true },
-      { id: "m2", title: "Heti 3x erőnléti edzés tartása", domain: "Egészség & Fitnesz", done: true },
-      { id: "m3", title: "Két szakmai könyv feldolgozása", domain: "Személyes fejlődés", done: false },
-      { id: "m4", title: "Családi hétvégi program lefoglalása", domain: "Család & Kapcsolatok", done: false }
+      { id: "m1", title: "Gyerekszobák kifestése, berendezése", domain: "Otthon & Lakás", done: false },
+      { id: "m2", title: "Murph kihívás felkészülés & Orsi mozgása", domain: "Egészség & Fitnesz", done: true },
+      { id: "m3", title: "12M Ft-os megtakarítási szint elérése dec-re", domain: "Pénzügyek, anyagiak", done: false },
+      { id: "m4", title: "Szent Istvános közösségi szerepvállalás", domain: "Család & Kapcsolatok", done: false }
     ]
   },
   tasks: [
-    { id: "t1", date: "2026-09-04", title: "Heti mérföldkő összefoglaló lezárása", type: "BIG3", done: true },
-    { id: "t2", date: "2026-09-04", title: "Költségvetési terv áttekintése", type: "BIG3", done: false },
-    { id: "t3", date: "2026-09-04", title: "Lakásfelújítási ütemterv véglegesítése", type: "BIG3", done: false },
-    { id: "t4", date: "2026-09-04", title: "Heti jelentés elküldése a csapatnak", type: "SCHEDULED", done: true },
+    { id: "t1", date: "2026-09-04", title: "Murph edzésprogram heti bontás átnézése", type: "BIG3", done: true },
+    { id: "t2", date: "2026-09-04", title: "Festék és alapozó árak összeírása szobákhoz", type: "BIG3", done: false },
+    { id: "t3", date: "2026-09-04", title: "Megtakarítási ráta havi frissítése", type: "BIG3", done: false },
+    { id: "t4", date: "2026-09-04", title: "Heti projekt jelentés elküldése", type: "SCHEDULED", done: true },
     { id: "t5", date: "2026-09-04", title: "Szűrőbetét csere a konyhában", type: "DAILY5_MINI", done: false }
   ],
   habits: [
@@ -127,22 +135,85 @@ const INITIAL_DATA = {
     "2026-09-02": { h1: true, h2: true, h3: true, h4: true, h5: true },
     "2026-09-01": { h1: true, h2: false, h3: true, h4: true, h5: false },
     "2026-08-31": { h1: true, h2: true, h3: true, h4: false, h5: true }
-  }
+  },
+  visionAreas: [
+    {
+      id: "penzugyek",
+      title: "Pénzügyek, anyagiak",
+      hell: 'A gyerekek szemébe kell nézni, és azt mondani nekik: "Nem tudom ezt megadni nektek."',
+      ideal: '1. A gyerekek egyetemi tandíja félretéve 2030-ra.\n2. 65 évesen úgy vonulunk nyugdíjba, hogy csak a megtakarításaink hozamából fedezni tudnánk a korábbi életszínvonalunkat.',
+      nextBigGoal: '2026. decemberre az összes megtakarítás elérje a 12 M Ft-ot'
+    },
+    {
+      id: "egeszseg",
+      title: "Egészség & Fitnesz",
+      hell: 'Fiatalon meghalok egy megelőzhető betegségben és nem látom, ahogy a gyerekeim sikerrel boldogulnak az életben.',
+      ideal: '1. Rendszeresen mozgok, fitt vagyok. 90 éves koromban is kiváló formában leszek, a 3-ra gyakorlatilag fel tudok szaladni 2 nagy szatyorral a kezemben. A dédunokákkal is vidáman tudok játszani. Kognitív képességeim kiválóak.\n2. Ideális esetben Orsi is velem együtt hasonló szinten lesz.',
+      nextBigGoal: '1. Murph kihívás teljesítése\n2. Orsi rendszeres mozgásának elindítása'
+    },
+    {
+      id: "otthon",
+      title: "Otthon & Lakás",
+      hell: 'Egy rossz környezetben élek és aggódnom kell a lakhatás miatt.',
+      ideal: '1. Egy saját, 160 négyzetméteres modern, jó lakás van a saját nevünkön.\n2. Békés, csendes szomszédokkal jó kapcsolatban.',
+      nextBigGoal: 'Gyerekszobák kifestése, berendezése'
+    },
+    {
+      id: "karrier",
+      title: "Karrier & Munka",
+      hell: 'Olyan munkahelyen dolgozni, amit nem szeretsz, rossz hangulattal.',
+      ideal: '1. Elismert projektvezető vagyok, akihez szívesen fordulnak a kollégák tanácsért és akit kifejezetten kérnek a megrendelők, hogy dolgozzam a projektjükön.\n2. Microsoft Project szakértőként hívnak, ha kell egy jó és pontos ütemterv.\n3. Több olyan projekt megvalósítása van a hátam mögött életem végén, melyek sok embernek tették az életét jobbá. Írtak rólam cikket az újságok, mint pozitív példakép.',
+      nextBigGoal: 'Önálló, összetett projektek vezetése és az MS Project márka felépítése'
+    },
+    {
+      id: "fejlodes",
+      title: "Személyes fejlődés & szolgálat",
+      hell: 'Elmegy mellettem az élet, nem lesz értelme. A tudásommal nem tudok senkinek segíteni.',
+      ideal: '1. Rendszeresen tanulok valami újat.\n2. Tanítok másokat, hogy jobbá váljanak és így nagy és jó dolgokat vigyenek végbe, melyekben így közvetve nekem is benne lesz a munkám.',
+      nextBigGoal: 'Folyamatos tanulás és fejlődés. A megszerzett tudás (PMP, FMV, MS Project) aktív megosztása a közösséggel.'
+    },
+    {
+      id: "szorakozas",
+      title: "Szórakozás & Kikapcsolódás",
+      hell: 'Fáradt leszek, ingerült, csak a kanapén ülök. Nem töltődök fel, és ez rá fog nyomni a családomra.',
+      ideal: '1. Bármilyen programra, amit csak kinéztünk magunknak, el tudtunk menni és ehhez nem kellett az anyagi biztonságról lemondani.',
+      nextBigGoal: 'Rendszeres, minőségi kikapcsolódás: Heti szinten van idő a pihenésre. Havonta egy "randi" Orsival.'
+    },
+    {
+      id: "csalad",
+      title: "Család & Kapcsolatok",
+      hell: 'Nem lesznek kapcsolataim, nem fogok másokhoz kapcsolódni. Az öregkor magányosan fog elérni.',
+      ideal: '1. Rendszeresen találkozunk a családtagjainkkal. A gyermekeink örömmel és rendszeresen látogatnak meg majd minket akkor is, amikor már saját gyermekeik is lesznek.\n2. Olyan kapcsolati hálót alakítottam ki és ápoltam, melyre büszke vagyok és amelyen keresztül bármit el tudtam érni életem során.',
+      nextBigGoal: 'Szent Istvános Szülői közösségben aktív részvételt vállalni.'
+    }
+  ]
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState("today");
+  const [activeTab, setActiveTab] = useState("vision"); // Indításként közvetlenül az Iránytű nyílik
   const [selectedDate, setSelectedDate] = useState("2026-09-04");
 
   const [state, setState] = useState(() => {
     const saved = localStorage.getItem("mc_cloud_state");
-    return saved ? JSON.parse(saved) : INITIAL_DATA;
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Ha még a régi struktúra volt benne visionAreas nélkül, beillesztjük
+      if (!parsed.visionAreas) {
+        parsed.visionAreas = INITIAL_DATA.visionAreas;
+      }
+      return parsed;
+    }
+    return INITIAL_DATA;
   });
 
   const [syncStatus, setSyncStatus] = useState("synced");
   const isInternalUpdate = useRef(false);
 
-  // Beviteli mezők
+  // Iránytű szerkesztés állapota
+  const [editingAreaId, setEditingAreaId] = useState(null);
+  const [editForm, setEditForm] = useState({ hell: "", ideal: "", nextBigGoal: "" });
+
+  // Beviteli mezők (napi & sprint)
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskType, setNewTaskType] = useState("BIG3");
   const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
@@ -158,11 +229,15 @@ export default function App() {
         if (res.ok) {
           const rows = await res.json();
           if (rows && rows.length > 0 && rows[0].data) {
+            const serverData = rows[0].data;
+            if (!serverData.visionAreas) {
+              serverData.visionAreas = INITIAL_DATA.visionAreas;
+            }
             setState((current) => {
-              if (JSON.stringify(current) !== JSON.stringify(rows[0].data)) {
+              if (JSON.stringify(current) !== JSON.stringify(serverData)) {
                 isInternalUpdate.current = true;
-                localStorage.setItem("mc_cloud_state", JSON.stringify(rows[0].data));
-                return rows[0].data;
+                localStorage.setItem("mc_cloud_state", JSON.stringify(serverData));
+                return serverData;
               }
               return current;
             });
@@ -174,10 +249,7 @@ export default function App() {
       }
     }
 
-    // Első betöltés
     fetchServerState();
-
-    // 3 másodperces csendes ellenőrzés (oldalfrissítés nélküli átugrás)
     const interval = setInterval(fetchServerState, 3000);
     return () => clearInterval(interval);
   }, []);
@@ -219,7 +291,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [state]);
 
-  const { sprint, tasks, habits, habitLogs } = state;
+  const { sprint, tasks, habits, habitLogs, visionAreas = INITIAL_DATA.visionAreas } = state;
 
   const currentDayTasks = tasks.filter((t) => (t.date || "2026-09-04") === selectedDate);
   const scoredTasks = currentDayTasks.filter((t) => t.type === "BIG3" || t.type === "SCHEDULED");
@@ -233,7 +305,27 @@ export default function App() {
   const completedMilestones = sprint.milestones.filter((m) => m.done).length;
   const sprintProgressPct = sprint.milestones.length > 0 ? Math.round((completedMilestones / sprint.milestones.length) * 100) : 0;
 
-  // Műveletek
+  // Iránytű mentés kezelője
+  const startEditArea = (area) => {
+    setEditingAreaId(area.id);
+    setEditForm({
+      hell: area.hell,
+      ideal: area.ideal,
+      nextBigGoal: area.nextBigGoal
+    });
+  };
+
+  const saveEditArea = (id) => {
+    setState((prev) => ({
+      ...prev,
+      visionAreas: (prev.visionAreas || INITIAL_DATA.visionAreas).map((a) =>
+        a.id === id ? { ...a, ...editForm } : a
+      )
+    }));
+    setEditingAreaId(null);
+  };
+
+  // Napi feladat műveletek
   const toggleTask = (id) => {
     setState((prev) => ({
       ...prev,
@@ -348,39 +440,41 @@ export default function App() {
         </div>
       </header>
 
-      {/* VÍZSZINTES HETI NAPTÁRSÁV */}
-      <div className="bg-slate-900/80 border-b border-slate-800 px-3 py-2.5 flex justify-between gap-1.5 overflow-x-auto">
-        {DAYS_OF_WEEK.map((day) => {
-          const isSelected = day.key === selectedDate;
-          const dayTasks = tasks.filter((t) => t.date === day.key && (t.type === "BIG3" || t.type === "SCHEDULED"));
-          const doneTasks = dayTasks.filter((t) => t.done).length;
-          const pct = dayTasks.length > 0 ? Math.round((doneTasks / dayTasks.length) * 100) : null;
+      {/* VÍZSZINTES HETI NAPTÁRSÁV (Ha nem az Iránytű van nyitva) */}
+      {activeTab !== "vision" && (
+        <div className="bg-slate-900/80 border-b border-slate-800 px-3 py-2.5 flex justify-between gap-1.5 overflow-x-auto">
+          {DAYS_OF_WEEK.map((day) => {
+            const isSelected = day.key === selectedDate;
+            const dayTasks = tasks.filter((t) => t.date === day.key && (t.type === "BIG3" || t.type === "SCHEDULED"));
+            const doneTasks = dayTasks.filter((t) => t.done).length;
+            const pct = dayTasks.length > 0 ? Math.round((doneTasks / dayTasks.length) * 100) : null;
 
-          return (
-            <button
-              key={day.key}
-              onClick={() => setSelectedDate(day.key)}
-              className={`flex-1 py-1.5 px-1 rounded-xl flex flex-col items-center gap-1 transition ${
-                isSelected 
-                  ? "bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/20" 
-                  : "hover:bg-slate-800 text-slate-400"
-              }`}
-            >
-              <span className="text-[10px] uppercase">{day.short}</span>
-              <span className="text-xs">{day.key.split("-")[2]}</span>
-              {pct !== null ? (
-                <span className={`text-[9px] px-1 rounded-full ${
-                  isSelected ? "bg-slate-900 text-emerald-400" : "bg-slate-800 text-slate-300"
-                }`}>
-                  {pct}%
-                </span>
-              ) : (
-                <span className="text-[9px] opacity-40">-</span>
-              )}
-            </button>
-          );
-        })}
-      </div>
+            return (
+              <button
+                key={day.key}
+                onClick={() => setSelectedDate(day.key)}
+                className={`flex-1 py-1.5 px-1 rounded-xl flex flex-col items-center gap-1 transition ${
+                  isSelected 
+                    ? "bg-emerald-500 text-slate-950 font-bold shadow-md shadow-emerald-500/20" 
+                    : "hover:bg-slate-800 text-slate-400"
+                }`}
+              >
+                <span className="text-[10px] uppercase">{day.short}</span>
+                <span className="text-xs">{day.key.split("-")[2]}</span>
+                {pct !== null ? (
+                  <span className={`text-[9px] px-1 rounded-full ${
+                    isSelected ? "bg-slate-900 text-emerald-400" : "bg-slate-800 text-slate-300"
+                  }`}>
+                    {pct}%
+                  </span>
+                ) : (
+                  <span className="text-[9px] opacity-40">-</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {/* FŐ TARTALOM */}
       <main className="p-4 space-y-5 flex-1">
@@ -613,39 +707,6 @@ export default function App() {
                 })}
               </div>
             </section>
-
-            {/* DAILY 5 MINI */}
-            {currentDayTasks.some((t) => t.type === "DAILY5_MINI") && (
-              <section className="space-y-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 px-1">
-                  Daily 5 Mini (0% hatás)
-                </span>
-                <div className="space-y-1.5">
-                  {currentDayTasks.filter((t) => t.type === "DAILY5_MINI").map((task) => (
-                    <div
-                      key={task.id}
-                      onClick={() => toggleTask(task.id)}
-                      className="p-2.5 bg-slate-900/60 border border-slate-800/80 rounded-lg flex items-center justify-between text-xs text-slate-300 cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2.5 pr-2">
-                        {task.done ? (
-                          <CheckCircleIcon size={15} className="text-slate-500 shrink-0" />
-                        ) : (
-                          <CircleIcon size={15} className="text-slate-600 shrink-0" />
-                        )}
-                        <span className={task.done ? "line-through text-slate-500" : ""}>{task.title}</span>
-                      </div>
-                      <button
-                        onClick={(e) => deleteTask(task.id, e)}
-                        className="text-slate-600 hover:text-red-400 p-1 rounded transition shrink-0"
-                      >
-                        <TrashIcon size={13} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
           </>
         )}
 
@@ -659,6 +720,7 @@ export default function App() {
               </p>
             </div>
 
+            {/* SZOKÁS MÁTRIX */}
             <section className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Szokások Heti Mátrixa</span>
@@ -694,37 +756,6 @@ export default function App() {
                     </div>
                   </div>
                 ))}
-              </div>
-            </section>
-
-            <section className="space-y-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">Heti Fókuszpontok</span>
-              <div className="space-y-2">
-                {DAYS_OF_WEEK.map((d) => {
-                  const dayBig3 = tasks.filter((t) => t.date === d.key && t.type === "BIG3");
-                  return (
-                    <div 
-                      key={d.key} 
-                      onClick={() => {
-                        setSelectedDate(d.key);
-                        setActiveTab("today");
-                      }}
-                      className="p-3 bg-slate-900 border border-slate-800 rounded-xl flex justify-between items-center cursor-pointer hover:border-slate-700 transition"
-                    >
-                      <div>
-                        <span className="text-xs font-bold text-slate-300">{d.label} ({d.key.split("-")[2]})</span>
-                        <div className="text-[11px] text-slate-400 mt-0.5">
-                          {dayBig3.length > 0 ? (
-                            <span>{dayBig3.filter((t) => t.done).length} / {dayBig3.length} Big3 kész</span>
-                          ) : (
-                            <span className="text-slate-600 italic">Nincs még Big3 megadva</span>
-                          )}
-                        </div>
-                      </div>
-                      <span className="text-xs text-emerald-400 font-semibold">Megnyitás →</span>
-                    </div>
-                  );
-                })}
               </div>
             </section>
           </div>
@@ -781,13 +812,9 @@ export default function App() {
                 onChange={(e) => setNewMilestoneDomain(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-300 focus:outline-none"
               >
-                <option value="Otthon & Lakás">Otthon & Lakás</option>
-                <option value="Egészség & Fitnesz">Egészség & Fitnesz</option>
-                <option value="Karrier & Munka">Karrier & Munka</option>
-                <option value="Pénzügyek, anyagiak">Pénzügyek, anyagiak</option>
-                <option value="Személyes fejlődés & szolgálat">Személyes fejlődés & szolgálat</option>
-                <option value="Család & Kapcsolatok">Család & Kapcsolatok</option>
-                <option value="Szórakozás & Kikapcsolódás">Szórakozás & Kikapcsolódás</option>
+                {visionAreas.map((area) => (
+                  <option key={area.id} value={area.title}>{area.title}</option>
+                ))}
               </select>
             </form>
 
@@ -826,17 +853,117 @@ export default function App() {
           </div>
         )}
 
-        {/* 4. IRÁNYTŰ TAB */}
+        {/* 4. IRÁNYTŰ TAB (A 7 ÉLETTERÜLET RÉSZLETES KIBONTÁSA) */}
         {activeTab === "vision" && (
-          <div className="space-y-3">
-            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400 px-1">Életterületek és Jövőkép</h2>
-            <div className="p-4 bg-slate-900 border border-slate-800 rounded-xl space-y-2">
-              <span className="text-xs font-bold text-emerald-400">Egészség & Fitnesz</span>
-              <div className="text-xs space-y-1 text-slate-300">
-                <p><span className="text-red-400 font-medium">Pokol képe:</span> Kimerültség, kihagyott edzések, energiátlan esték.</p>
-                <p><span className="text-emerald-400 font-medium">Ideális kép:</span> Szálkás, energikus fizikum, napi szintű vitalitás.</p>
-                <p><span className="text-amber-400 font-medium">Következő NAGY cél:</span> Stabil 10 hetes edzésciklus lefutása sérülés nélkül.</p>
+          <div className="space-y-4">
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-1 shadow-sm">
+              <div className="flex items-center gap-2">
+                <CompassIcon size={20} className="text-emerald-400" />
+                <h2 className="text-sm font-bold uppercase tracking-wider text-emerald-400">Élet-Iránytű (7 Terület)</h2>
               </div>
+              <p className="text-xs text-slate-400">
+                A mély belső motiváció és az elkerülendő pokol térképe. Bármelyik kártyát közvetlenül szerkesztheted.
+              </p>
+            </div>
+
+            <div className="space-y-3.5">
+              {visionAreas.map((area) => {
+                const isEditing = editingAreaId === area.id;
+
+                return (
+                  <div key={area.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-md">
+                    {/* FEJLÉC ÉS SZERKESZTŐ GOMB */}
+                    <div className="flex justify-between items-center border-b border-slate-800/80 pb-2">
+                      <h3 className="text-sm font-bold text-white tracking-wide flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                        {area.title}
+                      </h3>
+                      {!isEditing ? (
+                        <button
+                          onClick={() => startEditArea(area)}
+                          className="text-slate-400 hover:text-emerald-400 p-1 transition flex items-center gap-1 text-[11px]"
+                        >
+                          <EditIcon size={14} />
+                          <span>Szerkeszt</span>
+                        </button>
+                      ) : (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setEditingAreaId(null)}
+                            className="text-slate-400 hover:text-slate-200 text-xs px-2 py-0.5 rounded"
+                          >
+                            Mégse
+                          </button>
+                          <button
+                            onClick={() => saveEditArea(area.id)}
+                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-2.5 py-0.5 rounded font-medium transition"
+                          >
+                            Mentés
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* TARTALOM (OLVASÓ VAGY SZERKESZTŐ NÉZET) */}
+                    {!isEditing ? (
+                      <div className="space-y-3 text-xs leading-relaxed">
+                        <div className="bg-red-950/20 border border-red-900/30 rounded-xl p-2.5">
+                          <span className="text-[10px] uppercase font-bold text-red-400 tracking-wider block mb-1">
+                            Pokol képe (Amit el akarunk kerülni)
+                          </span>
+                          <p className="text-slate-300 italic whitespace-pre-line">{area.hell}</p>
+                        </div>
+
+                        <div className="bg-emerald-950/20 border border-emerald-900/30 rounded-xl p-2.5">
+                          <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider block mb-1">
+                            Ideális kép (Ahova tartunk)
+                          </span>
+                          <p className="text-slate-200 whitespace-pre-line">{area.ideal}</p>
+                        </div>
+
+                        <div className="bg-amber-950/20 border border-amber-900/30 rounded-xl p-2.5">
+                          <span className="text-[10px] uppercase font-bold text-amber-400 tracking-wider block mb-1">
+                            Következő NAGY cél
+                          </span>
+                          <p className="text-amber-200 font-medium whitespace-pre-line">{area.nextBigGoal}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3 text-xs">
+                        <div>
+                          <label className="text-[10px] uppercase font-bold text-red-400 block mb-1">Pokol képe:</label>
+                          <textarea
+                            rows={3}
+                            value={editForm.hell}
+                            onChange={(e) => setEditForm({ ...editForm, hell: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-red-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] uppercase font-bold text-emerald-400 block mb-1">Ideális kép:</label>
+                          <textarea
+                            rows={4}
+                            value={editForm.ideal}
+                            onChange={(e) => setEditForm({ ...editForm, ideal: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] uppercase font-bold text-amber-400 block mb-1">Következő NAGY cél:</label>
+                          <textarea
+                            rows={2}
+                            value={editForm.nextBigGoal}
+                            onChange={(e) => setEditForm({ ...editForm, nextBigGoal: e.target.value })}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-amber-200 focus:outline-none focus:border-amber-500"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
