@@ -90,6 +90,12 @@ const EditIcon = ({ size = 15, className = "" }) => (
   </svg>
 );
 
+const ChevronDownIcon = ({ size = 16, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <polyline points="6 9 12 15 18 9" />
+  </svg>
+);
+
 // HÉT NAPJAI
 const DAYS_OF_WEEK = [
   { key: "2026-08-31", short: "H", label: "Hétfő" },
@@ -190,15 +196,14 @@ const INITIAL_DATA = {
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState("vision"); // Indításként közvetlenül az Iránytű nyílik
+  const [activeTab, setActiveTab] = useState("vision");
   const [selectedDate, setSelectedDate] = useState("2026-09-04");
 
   const [state, setState] = useState(() => {
     const saved = localStorage.getItem("mc_cloud_state");
     if (saved) {
       const parsed = JSON.parse(saved);
-      // Ha még a régi struktúra volt benne visionAreas nélkül, beillesztjük
-      if (!parsed.visionAreas) {
+      if (!parsed.visionAreas || parsed.visionAreas.length === 0) {
         parsed.visionAreas = INITIAL_DATA.visionAreas;
       }
       return parsed;
@@ -209,9 +214,16 @@ export default function App() {
   const [syncStatus, setSyncStatus] = useState("synced");
   const isInternalUpdate = useRef(false);
 
+  // Harmonika (lenyitás): melyik terület van épp kinyitva (alapértelmezésben semelyik = null)
+  const [expandedAreaId, setExpandedAreaId] = useState(null);
+
   // Iránytű szerkesztés állapota
   const [editingAreaId, setEditingAreaId] = useState(null);
-  const [editForm, setEditForm] = useState({ hell: "", ideal: "", nextBigGoal: "" });
+  const [editForm, setEditForm] = useState({ title: "", hell: "", ideal: "", nextBigGoal: "" });
+
+  // Új terület hozzáadás űrlap láthatóság
+  const [isAddingNewArea, setIsAddingNewArea] = useState(false);
+  const [newAreaTitle, setNewAreaTitle] = useState("");
 
   // Beviteli mezők (napi & sprint)
   const [newTaskTitle, setNewTaskTitle] = useState("");
@@ -219,7 +231,7 @@ export default function App() {
   const [newMilestoneTitle, setNewMilestoneTitle] = useState("");
   const [newMilestoneDomain, setNewMilestoneDomain] = useState("Otthon & Lakás");
 
-  // 1. ADATLEKÉRÉS ÉS PERIODIKUS HÁTTÉR-SZINKRONIZÁCIÓ (3 MP)
+  // 1. HÁTTÉR-SZINKRONIZÁCIÓ (3 MP)
   useEffect(() => {
     async function fetchServerState() {
       try {
@@ -230,7 +242,7 @@ export default function App() {
           const rows = await res.json();
           if (rows && rows.length > 0 && rows[0].data) {
             const serverData = rows[0].data;
-            if (!serverData.visionAreas) {
+            if (!serverData.visionAreas || serverData.visionAreas.length === 0) {
               serverData.visionAreas = INITIAL_DATA.visionAreas;
             }
             setState((current) => {
@@ -305,17 +317,28 @@ export default function App() {
   const completedMilestones = sprint.milestones.filter((m) => m.done).length;
   const sprintProgressPct = sprint.milestones.length > 0 ? Math.round((completedMilestones / sprint.milestones.length) * 100) : 0;
 
-  // Iránytű mentés kezelője
-  const startEditArea = (area) => {
+  // Harmonika kezelés
+  const toggleAreaExpand = (id) => {
+    if (editingAreaId) return; // Szerkesztés közben ne csukjuk be véletlenül
+    setExpandedAreaId((prev) => (prev === id ? null : id));
+  };
+
+  // Iránytű szerkesztés indítása
+  const startEditArea = (area, e) => {
+    e.stopPropagation();
+    setExpandedAreaId(area.id);
     setEditingAreaId(area.id);
     setEditForm({
+      title: area.title,
       hell: area.hell,
       ideal: area.ideal,
       nextBigGoal: area.nextBigGoal
     });
   };
 
-  const saveEditArea = (id) => {
+  // Iránytű kártya mentése
+  const saveEditArea = (id, e) => {
+    e.stopPropagation();
     setState((prev) => ({
       ...prev,
       visionAreas: (prev.visionAreas || INITIAL_DATA.visionAreas).map((a) =>
@@ -325,7 +348,48 @@ export default function App() {
     setEditingAreaId(null);
   };
 
-  // Napi feladat műveletek
+  // Életterület törlése
+  const deleteArea = (id, e) => {
+    e.stopPropagation();
+    if (!window.confirm("Biztosan törölni szeretnéd ezt az életterületet?")) return;
+    setState((prev) => ({
+      ...prev,
+      visionAreas: (prev.visionAreas || INITIAL_DATA.visionAreas).filter((a) => a.id !== id)
+    }));
+    setEditingAreaId(null);
+    setExpandedAreaId(null);
+  };
+
+  // Új életterület hozzáadása
+  const handleAddNewArea = (e) => {
+    e.preventDefault();
+    if (!newAreaTitle.trim()) return;
+    const newId = `area-${Date.now()}`;
+    const newAreaObj = {
+      id: newId,
+      title: newAreaTitle.trim(),
+      hell: "",
+      ideal: "",
+      nextBigGoal: ""
+    };
+    setState((prev) => ({
+      ...prev,
+      visionAreas: [...(prev.visionAreas || INITIAL_DATA.visionAreas), newAreaObj]
+    }));
+    setNewAreaTitle("");
+    setIsAddingNewArea(false);
+    // Egyből kinyitjuk és szerkesztő módba tesszük
+    setExpandedAreaId(newId);
+    setEditingAreaId(newId);
+    setEditForm({
+      title: newAreaObj.title,
+      hell: "",
+      ideal: "",
+      nextBigGoal: ""
+    });
+  };
+
+  // Feladat és szokás műveletek
   const toggleTask = (id) => {
     setState((prev) => ({
       ...prev,
@@ -603,9 +667,6 @@ export default function App() {
                     </button>
                   </div>
                 ))}
-                {currentDayTasks.filter((t) => t.type === "BIG3").length === 0 && (
-                  <p className="text-xs text-slate-600 italic px-2 py-1">Nincs Big3 feladat mára kitűzve.</p>
-                )}
               </div>
             </section>
 
@@ -720,7 +781,6 @@ export default function App() {
               </p>
             </div>
 
-            {/* SZOKÁS MÁTRIX */}
             <section className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Szokások Heti Mátrixa</span>
@@ -853,118 +913,224 @@ export default function App() {
           </div>
         )}
 
-        {/* 4. IRÁNYTŰ TAB (A 7 ÉLETTERÜLET RÉSZLETES KIBONTÁSA) */}
+        {/* 4. IRÁNYTŰ TAB (HARMONIKA, SZERKESZTHETŐ CÍM, ÚJ TERÜLET FELVÉTEL) */}
         {activeTab === "vision" && (
           <div className="space-y-4">
-            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-1 shadow-sm">
-              <div className="flex items-center gap-2">
-                <CompassIcon size={20} className="text-emerald-400" />
-                <h2 className="text-sm font-bold uppercase tracking-wider text-emerald-400">Élet-Iránytű (7 Terület)</h2>
+            
+            {/* IRÁNYTŰ FEJLÉC ÉS ÚJ TERÜLET GOMB */}
+            <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CompassIcon size={20} className="text-emerald-400" />
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-emerald-400">Élet-Iránytű</h2>
+                </div>
+                <button
+                  onClick={() => setIsAddingNewArea(!isAddingNewArea)}
+                  className="bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 text-[11px] font-semibold px-2.5 py-1 rounded-lg flex items-center gap-1 transition"
+                >
+                  <PlusIcon size={13} />
+                  <span>Új terület</span>
+                </button>
               </div>
-              <p className="text-xs text-slate-400">
-                A mély belső motiváció és az elkerülendő pokol térképe. Bármelyik kártyát közvetlenül szerkesztheted.
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Kattints egy kártyára a részletek kinyitásához. A szerkesztés ikonnal a nevet és a célokat is azonnal frissítheted.
               </p>
+
+              {/* ÚJ TERÜLET GYORS FELVÉTEL PANEL */}
+              {isAddingNewArea && (
+                <form onSubmit={handleAddNewArea} className="pt-2 border-t border-slate-800 space-y-2">
+                  <span className="text-xs font-bold text-slate-200">Új életterület megnevezése:</span>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Pl. Lelkiség, Hobbi, Tanulmányok..."
+                      value={newAreaTitle}
+                      onChange={(e) => setNewAreaTitle(e.target.value)}
+                      className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                      autoFocus
+                    />
+                    <button
+                      type="submit"
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0"
+                    >
+                      Létrehozás
+                    </button>
+                  </div>
+                </form>
+              )}
             </div>
 
-            <div className="space-y-3.5">
+            {/* HARMONIKA KÁRTYÁK LISTÁJA */}
+            <div className="space-y-2.5">
               {visionAreas.map((area) => {
+                const isExpanded = expandedAreaId === area.id;
                 const isEditing = editingAreaId === area.id;
 
                 return (
-                  <div key={area.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-md">
-                    {/* FEJLÉC ÉS SZERKESZTŐ GOMB */}
-                    <div className="flex justify-between items-center border-b border-slate-800/80 pb-2">
-                      <h3 className="text-sm font-bold text-white tracking-wide flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                        {area.title}
-                      </h3>
-                      {!isEditing ? (
-                        <button
-                          onClick={() => startEditArea(area)}
-                          className="text-slate-400 hover:text-emerald-400 p-1 transition flex items-center gap-1 text-[11px]"
-                        >
-                          <EditIcon size={14} />
-                          <span>Szerkeszt</span>
-                        </button>
-                      ) : (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setEditingAreaId(null)}
-                            className="text-slate-400 hover:text-slate-200 text-xs px-2 py-0.5 rounded"
-                          >
-                            Mégse
-                          </button>
-                          <button
-                            onClick={() => saveEditArea(area.id)}
-                            className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-2.5 py-0.5 rounded font-medium transition"
-                          >
-                            Mentés
-                          </button>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* TARTALOM (OLVASÓ VAGY SZERKESZTŐ NÉZET) */}
-                    {!isEditing ? (
-                      <div className="space-y-3 text-xs leading-relaxed">
-                        <div className="bg-red-950/20 border border-red-900/30 rounded-xl p-2.5">
-                          <span className="text-[10px] uppercase font-bold text-red-400 tracking-wider block mb-1">
-                            Pokol képe (Amit el akarunk kerülni)
-                          </span>
-                          <p className="text-slate-300 italic whitespace-pre-line">{area.hell}</p>
-                        </div>
-
-                        <div className="bg-emerald-950/20 border border-emerald-900/30 rounded-xl p-2.5">
-                          <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider block mb-1">
-                            Ideális kép (Ahova tartunk)
-                          </span>
-                          <p className="text-slate-200 whitespace-pre-line">{area.ideal}</p>
-                        </div>
-
-                        <div className="bg-amber-950/20 border border-amber-900/30 rounded-xl p-2.5">
-                          <span className="text-[10px] uppercase font-bold text-amber-400 tracking-wider block mb-1">
-                            Következő NAGY cél
-                          </span>
-                          <p className="text-amber-200 font-medium whitespace-pre-line">{area.nextBigGoal}</p>
+                  <div 
+                    key={area.id} 
+                    className={`bg-slate-900 border rounded-2xl transition duration-200 overflow-hidden ${
+                      isExpanded ? "border-emerald-500/40 shadow-lg shadow-black/30" : "border-slate-800/80 hover:border-slate-700"
+                    }`}
+                  >
+                    {/* KÁRTYA FEJLÉC (KATTINTÁSRA NYIT / CSUK) */}
+                    <div
+                      onClick={() => toggleAreaExpand(area.id)}
+                      className="p-3.5 flex items-center justify-between cursor-pointer select-none"
+                    >
+                      <div className="flex items-center gap-2.5 pr-2 flex-1">
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${isExpanded ? "bg-emerald-400" : "bg-slate-600"}`} />
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-100 tracking-wide">{area.title}</h3>
+                          {!isExpanded && area.nextBigGoal && (
+                            <p className="text-[11px] text-amber-400/90 font-medium truncate max-w-[220px] mt-0.5">
+                              Cél: {area.nextBigGoal}
+                            </p>
+                          )}
                         </div>
                       </div>
-                    ) : (
-                      <div className="space-y-3 text-xs">
-                        <div>
-                          <label className="text-[10px] uppercase font-bold text-red-400 block mb-1">Pokol képe:</label>
-                          <textarea
-                            rows={3}
-                            value={editForm.hell}
-                            onChange={(e) => setEditForm({ ...editForm, hell: e.target.value })}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-red-500"
-                          />
-                        </div>
 
-                        <div>
-                          <label className="text-[10px] uppercase font-bold text-emerald-400 block mb-1">Ideális kép:</label>
-                          <textarea
-                            rows={4}
-                            value={editForm.ideal}
-                            onChange={(e) => setEditForm({ ...editForm, ideal: e.target.value })}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
-                          />
-                        </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {!isEditing && (
+                          <button
+                            onClick={(e) => startEditArea(area, e)}
+                            className="text-slate-400 hover:text-emerald-400 p-1.5 rounded hover:bg-slate-800 transition"
+                            title="Szerkesztés"
+                          >
+                            <EditIcon size={15} />
+                          </button>
+                        )}
+                        <ChevronDownIcon 
+                          size={17} 
+                          className={`text-slate-500 transition-transform duration-300 ${isExpanded ? "transform rotate-180 text-emerald-400" : ""}`} 
+                        />
+                      </div>
+                    </div>
 
-                        <div>
-                          <label className="text-[10px] uppercase font-bold text-amber-400 block mb-1">Következő NAGY cél:</label>
-                          <textarea
-                            rows={2}
-                            value={editForm.nextBigGoal}
-                            onChange={(e) => setEditForm({ ...editForm, nextBigGoal: e.target.value })}
-                            className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-amber-200 focus:outline-none focus:border-amber-500"
-                          />
-                        </div>
+                    {/* KINYITOTT TARTALOM */}
+                    {isExpanded && (
+                      <div className="px-3.5 pb-4 pt-1 border-t border-slate-800/60 space-y-3">
+                        {!isEditing ? (
+                          <div className="space-y-3 text-xs leading-relaxed mt-2">
+                            {/* POKOL KÉPE */}
+                            <div className="bg-red-950/20 border border-red-900/30 rounded-xl p-3">
+                              <span className="text-[10px] uppercase font-bold text-red-400 tracking-wider block mb-1">
+                                POKOL KÉPE (AMIT EL AKARUNK KERÜLNI)
+                              </span>
+                              <p className="text-slate-300 italic whitespace-pre-line">
+                                {area.hell || "Nincs még kitöltve."}
+                              </p>
+                            </div>
+
+                            {/* IDEÁLIS KÉP */}
+                            <div className="bg-emerald-950/20 border border-emerald-900/30 rounded-xl p-3">
+                              <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider block mb-1">
+                                IDEÁLIS KÉP (AHOVA TARTUNK)
+                              </span>
+                              <p className="text-slate-200 whitespace-pre-line">
+                                {area.ideal || "Nincs még kitöltve."}
+                              </p>
+                            </div>
+
+                            {/* KÖVETKEZŐ NAGY CÉL */}
+                            <div className="bg-amber-950/20 border border-amber-900/30 rounded-xl p-3">
+                              <span className="text-[10px] uppercase font-bold text-amber-400 tracking-wider block mb-1">
+                                KÖVETKEZŐ NAGY CÉL
+                              </span>
+                              <p className="text-amber-200 font-medium whitespace-pre-line">
+                                {area.nextBigGoal || "Nincs még kitűzve."}
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          /* SZERKESZTŐ NÉZET */
+                          <div className="space-y-3 pt-2 text-xs">
+                            <div>
+                              <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Életterület elnevezése:</label>
+                              <input
+                                type="text"
+                                value={editForm.title}
+                                onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-100 font-bold focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] uppercase font-bold text-red-400 block mb-1">
+                                POKOL KÉPE (AMIT EL AKARUNK KERÜLNI):
+                              </label>
+                              <textarea
+                                rows={3}
+                                value={editForm.hell}
+                                onChange={(e) => setEditForm({ ...editForm, hell: e.target.value })}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-red-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] uppercase font-bold text-emerald-400 block mb-1">
+                                IDEÁLIS KÉP (AHOVA TARTUNK):
+                              </label>
+                              <textarea
+                                rows={4}
+                                value={editForm.ideal}
+                                onChange={(e) => setEditForm({ ...editForm, ideal: e.target.value })}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="text-[10px] uppercase font-bold text-amber-400 block mb-1">
+                                KÖVETKEZŐ NAGY CÉL:
+                              </label>
+                              <textarea
+                                rows={2}
+                                value={editForm.nextBigGoal}
+                                onChange={(e) => setEditForm({ ...editForm, nextBigGoal: e.target.value })}
+                                className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-amber-200 focus:outline-none focus:border-amber-500"
+                              />
+                            </div>
+
+                            {/* GOMBOK */}
+                            <div className="flex justify-between items-center pt-2">
+                              <button
+                                type="button"
+                                onClick={(e) => deleteArea(area.id, e)}
+                                className="text-red-400 hover:text-red-300 text-xs flex items-center gap-1 p-1"
+                              >
+                                <TrashIcon size={14} />
+                                <span>Terület törlése</span>
+                              </button>
+
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingAreaId(null);
+                                  }}
+                                  className="text-slate-400 hover:text-slate-200 text-xs px-3 py-1 rounded"
+                                >
+                                  Mégse
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => saveEditArea(area.id, e)}
+                                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs px-3 py-1 rounded font-semibold transition"
+                                >
+                                  Mentés
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
                 );
               })}
             </div>
+
           </div>
         )}
 
