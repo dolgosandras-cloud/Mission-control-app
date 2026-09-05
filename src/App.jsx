@@ -165,7 +165,6 @@ const DAILY_QUOTES = [
   { text: "A leggyorsabb út a sikerhez, ha abbahagyod a kifogások keresését, és elkezdesz építeni.", author: "Chris Williamson" }
 ];
 
-// MAI DÁTUM DINAMIKUS ELŐÁLLÍTÁSA (YYYY-MM-DD)
 function getTodayDateString() {
   const d = new Date();
   const year = d.getFullYear();
@@ -174,7 +173,6 @@ function getTodayDateString() {
   return `${year}-${month}-${day}`;
 }
 
-// Aktuális ISO hét száma
 function getCurrentWeekNumber() {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
@@ -189,26 +187,16 @@ function formatShortDate(dateStr) {
   return parts.length === 3 ? `${parts[1]}.${parts[2]}` : dateStr;
 }
 
-const INITIAL_DATA = {
+// ÜRES BIZTONSÁGI ALAPVÁZ (NINCSENEK TESZTADATOK)
+const FALLBACK_EMPTY_STATE = {
   sprint: {
     id: "sprint-1",
-    name: "2026 Q3 Fókusz",
-    startDate: "2026-08-24",
-    endDate: "2026-10-04",
-    milestones: [
-      { id: "m1", title: "Gyerekszobák kifestése, berendezése", domain: "Otthon & Lakás", done: false },
-      { id: "m2", title: "Murph kihívás felkészülés & Orsi mozgása", domain: "Egészség & Fitnesz", done: true },
-      { id: "m3", title: "12M Ft-os megtakarítási szint elérése dec-re", domain: "Pénzügyek, anyagiak", done: false },
-      { id: "m4", title: "Szent Istvános közösségi szerepvállalás", domain: "Család & Kapcsolatok", done: false }
-    ]
+    name: "Sprint Fókusz",
+    startDate: getTodayDateString(),
+    endDate: getTodayDateString(),
+    milestones: []
   },
-  tasks: [
-    { id: "t1", date: getTodayDateString(), week: `2026-W${getCurrentWeekNumber()}`, title: "Murph edzésprogram heti bontás átnézése", domain: "Egészség & Fitnesz", type: "BIG3", done: true },
-    { id: "t2", date: getTodayDateString(), week: `2026-W${getCurrentWeekNumber()}`, title: "Festék és alapozó árak összeírása szobákhoz", domain: "Otthon & Lakás", type: "BIG3", done: false },
-    { id: "t3", date: getTodayDateString(), week: `2026-W${getCurrentWeekNumber()}`, title: "Megtakarítási ráta havi frissítése", domain: "Pénzügyek, anyagiak", type: "BIG3", done: false },
-    { id: "t4", date: getTodayDateString(), week: `2026-W${getCurrentWeekNumber()}`, title: "Heti projekt jelentés elküldése", domain: "Karrier & Munka", type: "SCHEDULED", done: true },
-    { id: "t5", date: getTodayDateString(), week: `2026-W${getCurrentWeekNumber()}`, title: "Szűrőbetét csere a konyhában", domain: "Otthon & Lakás", type: "DAILY5_MINI", done: false }
-  ],
+  tasks: [],
   habits: [
     { id: "h1", title: "Hideg zuhany & légzés", block: "morning" },
     { id: "h2", title: "15 perc nyújtás / mobilitás", block: "morning" },
@@ -217,120 +205,57 @@ const INITIAL_DATA = {
     { id: "h5", title: "Képernyőmentes este 21:00 után", block: "evening" }
   ],
   habitLogs: {},
-  visionAreas: [
-    {
-      id: "penzugyek",
-      title: "Pénzügyek, anyagiak",
-      hell: 'A gyerekek szemébe kell nézni, és azt mondani nekik: "Nem tudom ezt megadni nektek."',
-      ideal: '1. A gyerekek egyetemi tandíja félretéve 2030-ra.\n2. 65 évesen úgy vonulunk nyugdíjba, hogy csak a megtakarításaink hozamából fedezni tudnánk a korábbi életszínvonalunkat.',
-      nextBigGoal: '2026. decemberre az összes megtakarítás elérje a 12 M Ft-ot'
-    },
-    {
-      id: "egeszseg",
-      title: "Egészség & Fitnesz",
-      hell: 'Fiatalon meghalok egy megelőzhető betegségben és nem látom, ahogy a gyerekeim sikerrel boldogulnak az életben.',
-      ideal: '1. Rendszeresen mozgok, fitt vagyok. 90 éves koromban is kiváló formában leszek, a 3-ra gyakorlatilag fel tudok szaladni 2 nagy szatyorral a kezemben. A dédunokákkal is vidáman tudok játszani. Kognitív képességeim kiválóak.\n2. Ideális esetben Orsi is velem együtt hasonló szinten lesz.',
-      nextBigGoal: '1. Murph kihívás teljesítése\n2. Orsi rendszeres mozgásának elindítása'
-    },
-    {
-      id: "otthon",
-      title: "Otthon & Lakás",
-      hell: 'Egy rossz környezetben élek és aggódnom kell a lakhatás miatt.',
-      ideal: '1. Egy saját, 160 négyzetméteres modern, jó lakás van a saját nevünkön.\n2. Békés, csendes szomszédokkal jó kapcsolatban.',
-      nextBigGoal: 'Gyerekszobák kifestése, berendezése'
-    },
-    {
-      id: "karrier",
-      title: "Karrier & Munka",
-      hell: 'Olyan munkahelyen dolgozni, amit nem szeretsz, rossz hangulattal.',
-      ideal: '1. Elismert projektvezető vagyok, akihez szívesen fordulnak a kollégák tanácsért és akit kifejezetten kérnek a megrendelők, hogy dolgozzam a projektjükön.\n2. Microsoft Project szakértőként hívnak, ha kell egy jó és pontos ütemterv.\n3. Több olyan projekt megvalósítása van a hátam mögött életem végén, melyek sok embernek tették az életét jobbá. Írtak rólam cikket az újságok, mint pozitív példakép.',
-      nextBigGoal: 'Önálló, összetett projektek vezetése és az MS Project márka felépítése'
-    },
-    {
-      id: "fejlodes",
-      title: "Személyes fejlődés & szolgálat",
-      hell: 'Elmegy mellettem az élet, nem lesz értelme. A tudásommal nem tudok senkinek segíteni.',
-      ideal: '1. Rendszeresen tanulok valami újat.\n2. Tanítok másokat, hogy jobbá váljanak és így nagy és jó dolgokat vigyenek végbe, melyekben így közvetve nekem is benne lesz a munkám.',
-      nextBigGoal: 'Folyamatos tanulás és fejlődés. A megszerzett tudás (PMP, FMV, MS Project) aktív megosztása a közösséggel.'
-    },
-    {
-      id: "szorakozas",
-      title: "Szórakozás & Kikapcsolódás",
-      hell: 'Fáradt leszek, ingerült, csak a kanapén ülök. Nem töltődök fel, és ez rá fog nyomni a családomra.',
-      ideal: '1. Bármilyen programra, amit csak kinéztünk magunknak, el tudtunk menni és ehhez nem kellett az anyagi biztonságról lemondani.',
-      nextBigGoal: 'Rendszeres, minőségi kikapcsolódás: Heti szinten van idő a pihenésre. Havonta egy "randi" Orsival.'
-    },
-    {
-      id: "csalad",
-      title: "Család & Kapcsolatok",
-      hell: 'Nem lesznek kapcsolataim, nem fogok másokhoz kapcsolódni. Az öregkor magányosan fog elérni.',
-      ideal: '1. Rendszeresen találkozunk a családtagjainkkal. A gyermekeink örömmel és rendszeresen látogatnak meg majd minket akkor is, amikor már saját gyermekeik is lesznek.\n2. Olyan kapcsolati hálót alakítottam ki és ápoltam, melyre büszke vagyok és amelyen keresztül bármit el tudtam érni életem során.',
-      nextBigGoal: 'Szent Istvános Szülői közösségben aktív részvételt vállalni.'
-    }
-  ]
+  visionAreas: []
 };
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("sprint");
-  
-  // A mai nap automatikusan a valós aktuális nap
   const todayActualStr = getTodayDateString();
   const [selectedDate, setSelectedDate] = useState(todayActualStr);
 
-  // Hét számozás automatikusan
   const initialWeekNum = getCurrentWeekNumber();
   const [selectedWeekNum, setSelectedWeekNum] = useState(initialWeekNum);
   const currentWeekKey = `2026-W${selectedWeekNum}`;
   const prevWeekKey = `2026-W${selectedWeekNum - 1}`;
 
+  // Kezdeti állapot kizárólag a helyi gyorstárból
   const [state, setState] = useState(() => {
     const saved = localStorage.getItem("mc_cloud_state");
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (!parsed.visionAreas || parsed.visionAreas.length === 0) parsed.visionAreas = INITIAL_DATA.visionAreas;
-      if (!parsed.sprint?.startDate) parsed.sprint = { ...INITIAL_DATA.sprint, ...parsed.sprint };
-      return parsed;
-    }
-    return INITIAL_DATA;
+    return saved ? JSON.parse(saved) : FALLBACK_EMPTY_STATE;
   });
 
   const [syncStatus, setSyncStatus] = useState("synced");
   const isInternalUpdate = useRef(false);
+  const isLoadedFromServer = useRef(false);
 
-  // Sprint lap állapota
   const [activeAreaIndex, setActiveAreaIndex] = useState(0);
   const touchStartX = useRef(null);
 
-  // Sprint fejléc beállítása (dátumválasztókkal)
   const [isEditingSprintHeader, setIsEditingSprintHeader] = useState(false);
   const [sprintHeaderForm, setSprintHeaderForm] = useState({
-    name: state.sprint?.name || "2026 Q3 Fókusz",
-    startDate: state.sprint?.startDate || "2026-08-24",
-    endDate: state.sprint?.endDate || "2026-10-04"
+    name: state.sprint?.name || "Sprint Fókusz",
+    startDate: state.sprint?.startDate || getTodayDateString(),
+    endDate: state.sprint?.endDate || getTodayDateString()
   });
 
-  // Rejtett beviteli sorok
   const [isAddingSprintMilestone, setIsAddingSprintMilestone] = useState(false);
   const [isAddingSprintWeekly, setIsAddingSprintWeekly] = useState(false);
   const [newSprintGoal, setNewSprintGoal] = useState("");
   const [newWeeklyGoal, setNewWeeklyGoal] = useState("");
 
-  // Hét nézet állapota
   const [quickAddAreaTitle, setQuickAddAreaTitle] = useState(null);
   const [quickAddWeeklyText, setQuickAddWeeklyText] = useState("");
 
-  // Napi nézet mezői
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskType, setNewTaskType] = useState("BIG3");
 
-  // Iránytű lap
   const [expandedAreaId, setExpandedAreaId] = useState(null);
   const [editingAreaId, setEditingAreaId] = useState(null);
   const [editForm, setEditForm] = useState({ title: "", hell: "", ideal: "", nextBigGoal: "" });
   const [isAddingNewArea, setIsAddingNewArea] = useState(false);
   const [newAreaTitle, setNewAreaTitle] = useState("");
 
-  // 1. SZINKRONIZÁCIÓ SUPABASE-SZEL (3 MP)
+  // 1. SZINKRONIZÁCIÓ SUPABASE-SZEL (KIZÁRÓLAG AZ ADATBÁZISBÓL DOLGOZIK)
   useEffect(() => {
     async function fetchServerState() {
       try {
@@ -341,17 +266,10 @@ export default function App() {
           const rows = await res.json();
           if (rows && rows.length > 0 && rows[0].data) {
             const serverData = rows[0].data;
-            if (!serverData.visionAreas || serverData.visionAreas.length === 0) serverData.visionAreas = INITIAL_DATA.visionAreas;
-            if (!serverData.sprint?.startDate) serverData.sprint = { ...INITIAL_DATA.sprint, ...serverData.sprint };
-
-            setState((current) => {
-              if (JSON.stringify(current) !== JSON.stringify(serverData)) {
-                isInternalUpdate.current = true;
-                localStorage.setItem("mc_cloud_state", JSON.stringify(serverData));
-                return serverData;
-              }
-              return current;
-            });
+            isInternalUpdate.current = true;
+            isLoadedFromServer.current = true;
+            setState(serverData);
+            localStorage.setItem("mc_cloud_state", JSON.stringify(serverData));
             setSyncStatus("synced");
           }
         }
@@ -365,12 +283,13 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // 2. HELYI MENTÉS
+  // 2. HELYI MENTÉS (CSAK HA MÁR EGYSZER BETÖLTÖTT A SZERVERRŐL, ÍGY NEM ÍRJA FELÜL SEMMI)
   useEffect(() => {
     if (isInternalUpdate.current) {
       isInternalUpdate.current = false;
       return;
     }
+    if (!isLoadedFromServer.current) return;
 
     localStorage.setItem("mc_cloud_state", JSON.stringify(state));
     setSyncStatus("saving");
@@ -399,13 +318,13 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [state]);
 
-  const { sprint = INITIAL_DATA.sprint, tasks, habits, habitLogs, visionAreas = INITIAL_DATA.visionAreas } = state;
+  const { sprint = FALLBACK_EMPTY_STATE.sprint, tasks = [], habits = [], habitLogs = {}, visionAreas = [] } = state;
   const currentArea = visionAreas[activeAreaIndex] || visionAreas[0];
 
-  // --- AUTOMATIKUS SPRINT CSÚSZKA SZÁMÍTÁSOK (A MAI VALÓS IDŐ ALAPJÁN) ---
-  const sprintStart = new Date(sprint.startDate || "2026-08-24").getTime();
-  const sprintEnd = new Date(sprint.endDate || "2026-10-04").getTime();
-  const actualNowTime = new Date().getTime(); // Pontos mai pillanat
+  // Automatikus idősáv
+  const sprintStart = new Date(sprint.startDate || getTodayDateString()).getTime();
+  const sprintEnd = new Date(sprint.endDate || getTodayDateString()).getTime();
+  const actualNowTime = new Date().getTime();
 
   let sprintTimePct = 0;
   if (sprintEnd > sprintStart) {
@@ -414,8 +333,9 @@ export default function App() {
     sprintTimePct = Math.min(100, Math.max(0, Math.round((elapsed / total) * 100)));
   }
 
-  const completedMilestones = sprint.milestones.filter((m) => m.domain === currentArea.title ? m.done : m.done).length;
-  const totalMilestones = sprint.milestones.length;
+  const milestones = sprint.milestones || [];
+  const completedMilestones = milestones.filter((m) => m.done).length;
+  const totalMilestones = milestones.length;
   const sprintTaskPct = totalMilestones > 0 ? Math.round((completedMilestones / totalMilestones) * 100) : 0;
 
   // Heti számítások
@@ -424,16 +344,13 @@ export default function App() {
   const weekHitRate = currentWeekTasks.length > 0 ? Math.round((completedWeekTasks / currentWeekTasks.length) * 100) : 0;
   const plannedAreasCount = visionAreas.filter((a) => currentWeekTasks.some((t) => t.domain === a.title)).length;
   
-  // Heti nap arány a valós nap alapján (hétfő = 1, vasárnap = 7)
   const currentDayOfWeekNum = new Date().getDay() || 7;
   const weekTimePct = Math.min(100, Math.max(0, Math.round((currentDayOfWeekNum / 7) * 100)));
 
-  // Elmaradt célok áthozatala
-  const pendingPrevWeekGoals = tasks.filter(
+  const pendingPrevWeekGoals = currentArea ? tasks.filter(
     (t) => t.domain === currentArea.title && (t.week || `2026-W${initialWeekNum}`) === prevWeekKey && !t.done
-  );
+  ) : [];
 
-  // Napi nézet számai
   const currentDayTasks = tasks.filter((t) => (t.date || todayActualStr) === selectedDate);
   const scoredDayTasks = currentDayTasks.filter((t) => t.type === "BIG3" || t.type === "SCHEDULED");
   const completedDayScored = scoredDayTasks.filter((t) => t.done).length;
@@ -442,14 +359,13 @@ export default function App() {
   const completedHabits = habits.filter((h) => !!todayHabitLog[h.id]).length;
   const dayHabitPct = habits.length > 0 ? Math.round((completedHabits / habits.length) * 100) : 0;
 
-  // Napi rotálódó idézet (a nap sorszáma alapján a 31 idézetből)
   const dayOfYear = Math.floor((actualNowTime - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000);
   const todayQuote = DAILY_QUOTES[Math.abs(dayOfYear) % DAILY_QUOTES.length];
 
-  // Swipe kezelés
+  // Swipe
   const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchEnd = (e) => {
-    if (!touchStartX.current) return;
+    if (!touchStartX.current || visionAreas.length === 0) return;
     const diff = touchStartX.current - e.changedTouches[0].clientX;
     if (diff > 50) goToNextArea();
     else if (diff < -50) goToPrevArea();
@@ -492,7 +408,7 @@ export default function App() {
     };
     setState((prev) => ({
       ...prev,
-      sprint: { ...prev.sprint, milestones: [...prev.sprint.milestones, newM] }
+      sprint: { ...prev.sprint, milestones: [...(prev.sprint.milestones || []), newM] }
     }));
     setNewSprintGoal("");
     setIsAddingSprintMilestone(false);
@@ -555,7 +471,7 @@ export default function App() {
   const toggleMilestone = (id) => {
     setState((prev) => ({
       ...prev,
-      sprint: { ...prev.sprint, milestones: prev.sprint.milestones.map((m) => (m.id === id ? { ...m, done: !m.done } : m)) }
+      sprint: { ...prev.sprint, milestones: (prev.sprint.milestones || []).map((m) => (m.id === id ? { ...m, done: !m.done } : m)) }
     }));
   };
 
@@ -563,7 +479,7 @@ export default function App() {
     e.stopPropagation();
     setState((prev) => ({
       ...prev,
-      sprint: { ...prev.sprint, milestones: prev.sprint.milestones.filter((m) => m.id !== id) }
+      sprint: { ...prev.sprint, milestones: (prev.sprint.milestones || []).filter((m) => m.id !== id) }
     }));
   };
 
@@ -601,13 +517,19 @@ export default function App() {
   };
   const saveEditArea = (id, e) => {
     e.stopPropagation();
-    setState((prev) => ({ ...prev, visionAreas: prev.visionAreas.map((a) => (a.id === id ? { ...a, ...editForm } : a)) }));
+    setState((prev) => ({
+      ...prev,
+      visionAreas: prev.visionAreas.map((a) => (a.id === id ? { ...a, ...editForm } : a))
+    }));
     setEditingAreaId(null);
   };
   const deleteArea = (id, e) => {
     e.stopPropagation();
     if (!window.confirm("Biztosan törölni szeretnéd ezt az életterületet?")) return;
-    setState((prev) => ({ ...prev, visionAreas: prev.visionAreas.filter((a) => a.id !== id) }));
+    setState((prev) => ({
+      ...prev,
+      visionAreas: prev.visionAreas.filter((a) => a.id !== id)
+    }));
     setEditingAreaId(null);
     setExpandedAreaId(null);
   };
@@ -628,11 +550,11 @@ export default function App() {
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 max-w-md mx-auto font-sans pb-28 select-none">
       
       {/* ========================================================================= */}
-      {/* DINAMIKUSAN VÁLTOZÓ RÖGZÍTETT FEJLÉC (STICKY HEADER)                     */}
+      {/* DINAMIKUS RÖGZÍTETT FEJLÉC                                                */}
       {/* ========================================================================= */}
       <header className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur border-b border-slate-800 shadow-md">
         
-        {/* 1. SPRINT NÉZET FEJLÉCE (AUTOMATIKUS MAI NAP) */}
+        {/* 1. SPRINT NÉZET FEJLÉCE */}
         {activeTab === "sprint" && (
           <div className="p-3 space-y-2">
             <div>
@@ -671,7 +593,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Sprint neve & beállítás gomb */}
             <div className="pt-1 flex justify-between items-center text-xs">
               {!isEditingSprintHeader ? (
                 <div 
@@ -804,7 +725,7 @@ export default function App() {
           </div>
         )}
 
-        {/* 4. IRÁNYTŰ NÉZET FEJLÉCE (NAPI ROTÁLÓDÓ IDÉZET) */}
+        {/* 4. IRÁNYTŰ NÉZET FEJLÉCE */}
         {activeTab === "vision" && (
           <div className="p-3.5 bg-slate-900/90 flex items-start gap-3 border-b border-slate-800">
             <CompassIcon size={18} className="text-emerald-400 shrink-0 mt-0.5" />
@@ -821,7 +742,7 @@ export default function App() {
       <main className="p-4 space-y-4 flex-1">
         
         {/* ======================================================== */}
-        {/* SPRINT NÉZET: FÓKUSZÁLT ÉLETTERÜLET + KOMPAKT LEBONTÁS   */}
+        {/* SPRINT NÉZET: SZÁMOK NÉLKÜLI CÍMMEL                      */}
         {/* ======================================================== */}
         {activeTab === "sprint" && currentArea && (
           <div 
@@ -829,15 +750,15 @@ export default function App() {
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
           >
-            {/* 1. FŐ ÉLETTERÜLET BLOKK (RESPONZÍV CÍMMEL, BIZTOSAN NEM LÓG KI A NYÍL) */}
+            {/* 1. ÉLETTERÜLET BLOKK (KIZÁRÓLAG A NÉVVEL, SZÁMOK NÉLKÜL) */}
             <section className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-3.5 space-y-3 shadow-lg shadow-black/20">
               
-              {/* Lapozó sor */}
               <div className="flex items-center justify-between border-b border-slate-800 pb-2">
                 <button onClick={goToPrevArea} className="p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg shrink-0 transition">
                   <ChevronLeftIcon size={18} />
                 </button>
 
+                {/* TISZTA NÉV (NINCS MÖGÖTTE SORSZÁM) */}
                 <div className="text-center flex-1 px-2 max-w-[240px]">
                   <select
                     value={activeAreaIndex}
@@ -850,7 +771,7 @@ export default function App() {
                   >
                     {visionAreas.map((area, idx) => (
                       <option key={area.id} value={idx} className="bg-slate-900 text-slate-100">
-                        {area.title} ({idx + 1}/{visionAreas.length})
+                        {area.title}
                       </option>
                     ))}
                   </select>
@@ -861,7 +782,6 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Távlati Célok */}
               <div className="space-y-2 text-xs leading-relaxed">
                 <div className="bg-red-950/20 border border-red-900/30 rounded-xl p-2">
                   <span className="text-[10px] uppercase font-bold text-red-400 block mb-0.5">POKOL KÉPE (AMIT EL AKARUNK KERÜLNI)</span>
@@ -880,13 +800,13 @@ export default function App() {
               </div>
             </section>
 
-            {/* 2. SPRINT-CÉLOK BLOKK (REJTETT BEVITEL + GOMBBAL) */}
+            {/* 2. SPRINT-CÉLOK BLOKK */}
             <section className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Sprint-célok</span>
                   <span className="text-[10px] text-slate-500">
-                    ({sprint.milestones.filter((m) => m.domain === currentArea.title && m.done).length}/{sprint.milestones.filter((m) => m.domain === currentArea.title).length})
+                    ({milestones.filter((m) => m.domain === currentArea.title && m.done).length}/{milestones.filter((m) => m.domain === currentArea.title).length})
                   </span>
                 </div>
 
@@ -916,7 +836,7 @@ export default function App() {
               )}
 
               <div className="space-y-1.5">
-                {sprint.milestones.filter((m) => m.domain === currentArea.title).map((m) => (
+                {milestones.filter((m) => m.domain === currentArea.title).map((m) => (
                   <div key={m.id} onClick={() => toggleMilestone(m.id)} className="p-2 bg-slate-950/60 border border-slate-800/80 rounded-xl flex items-center justify-between cursor-pointer hover:border-slate-700 transition">
                     <div className="flex items-center gap-2.5 pr-2">
                       {m.done ? <CheckCircleIcon size={16} className="text-emerald-400 shrink-0" /> : <CircleIcon size={16} className="text-slate-600 shrink-0" />}
@@ -925,7 +845,7 @@ export default function App() {
                     <button onClick={(e) => deleteMilestone(m.id, e)} className="text-slate-600 hover:text-red-400 p-1 rounded transition shrink-0"><TrashIcon size={13} /></button>
                   </div>
                 ))}
-                {sprint.milestones.filter((m) => m.domain === currentArea.title).length === 0 && !isAddingSprintMilestone && (
+                {milestones.filter((m) => m.domain === currentArea.title).length === 0 && !isAddingSprintMilestone && (
                   <p className="text-[11px] text-slate-600 italic px-1">Még nincs sprint-cél ezen a területen.</p>
                 )}
               </div>
@@ -952,11 +872,10 @@ export default function App() {
                 </button>
               </div>
 
-              {/* ROLLOVER LEHETŐSÉG */}
               {pendingPrevWeekGoals.length > 0 && (
                 <div className="bg-amber-950/20 border border-amber-900/40 rounded-xl p-2.5 flex items-center justify-between gap-2">
                   <div className="text-[11px] text-amber-200 leading-tight">
-                    <strong>{pendingPrevWeekGoals.length} elmaradt cél</strong> az előző hétről ({selectedWeekNum - 1}. hét).
+                    <strong>{pendingPrevWeekGoals.length} elmaradt cél</strong> az előző hétről.
                   </div>
                   <button
                     onClick={handleRolloverPendingGoals}
@@ -1147,7 +1066,7 @@ export default function App() {
         )}
 
         {/* ======================================================== */}
-        {/* IRÁNYTŰ TAB: TISZTA CÉLOK (CÍMKE NÉLKÜL)                 */}
+        {/* IRÁNYTŰ TAB                                              */}
         {/* ======================================================== */}
         {activeTab === "vision" && (
           <div className="space-y-3">
@@ -1163,7 +1082,6 @@ export default function App() {
                         <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${isExpanded ? "bg-emerald-400" : "bg-slate-600"}`} />
                         <div className="space-y-1">
                           <h3 className="text-sm font-bold text-slate-100 tracking-wide">{area.title}</h3>
-                          {/* ÖSSZECSUKVA CSAK A CÉL SZÖVEGE JELENIK MEG, A CÍMKE NEM */}
                           {!isExpanded && area.nextBigGoal && (
                             <p className="text-xs text-amber-400/90 font-medium leading-snug whitespace-pre-line">
                               {area.nextBigGoal}
@@ -1256,7 +1174,7 @@ export default function App() {
 
       </main>
 
-      {/* ALSÓ MENÜSÁV (SAFE-AREA FIXELT, NEM TOLÓDIK LE A TELEFONON) */}
+      {/* ALSÓ MENÜSÁV */}
       <nav 
         className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-slate-900/95 backdrop-blur border-t border-slate-800 px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex justify-around items-center z-30"
       >
