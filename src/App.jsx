@@ -102,6 +102,13 @@ const ChevronDownIcon = ({ size = 16, className = "" }) => (
   </svg>
 );
 
+const ArrowUpIcon = ({ size = 13, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <line x1="12" y1="19" x2="12" y2="5" />
+    <polyline points="5 12 12 5 19 12" />
+  </svg>
+);
+
 const SunIcon = ({ size = 14, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <circle cx="12" cy="12" r="5" />
@@ -210,6 +217,7 @@ const FALLBACK_EMPTY_STATE = {
   visionAreas: []
 };
 
+// Canvas konfetti effekt
 function triggerConfetti() {
   const canvas = document.createElement("canvas");
   canvas.className = "fixed inset-0 pointer-events-none z-50 w-full h-full";
@@ -218,7 +226,7 @@ function triggerConfetti() {
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
 
-  const particles = Array.from({ length: 45 }).map(() => ({
+  const particles = Array.from({ length: 50 }).map(() => ({
     x: canvas.width / 2,
     y: canvas.height / 3,
     vx: (Math.random() - 0.5) * 12,
@@ -298,7 +306,7 @@ export default function App() {
   const [isAddingNewArea, setIsAddingNewArea] = useState(false);
   const [newAreaTitle, setNewAreaTitle] = useState("");
 
-  // 1. SZINKRONIZÁCIÓ
+  // 1. SZINKRONIZÁCIÓ SUPABASE-SZEL
   useEffect(() => {
     async function fetchServerState() {
       try {
@@ -326,7 +334,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // 2. HELYI MENTÉS
+  // 2. HELYI MENTÉS A SUPABASE-BE
   useEffect(() => {
     if (isInternalUpdate.current) {
       isInternalUpdate.current = false;
@@ -409,7 +417,59 @@ export default function App() {
   const dayOfYear = Math.floor((actualNowTime - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000);
   const todayQuote = DAILY_QUOTES[Math.abs(dayOfYear) % DAILY_QUOTES.length];
 
-  // Napi feladat hozzáadása kategóriánként
+  // =========================================================================
+  // 14 NAPOS TREND ÉS 7 NAPOS MOZGÓÁTLAG (SMA) SZÁMÍTÁSA
+  // A mai nap a 13. index (0-13 = 14 nap)
+  // =========================================================================
+  const chartDays = Array.from({ length: 14 }).map((_, i) => offsetDateString(selectedDate, -13 + i));
+
+  // Segédfüggvény egy adott nap feladat-teljesítményének kinyerésére
+  const getTaskPctForDate = (dateStr) => {
+    const dTasks = tasks.filter((t) => t.date === dateStr && (t.type === "BIG3" || t.type === "SCHEDULED"));
+    if (dTasks.length === 0) return 0;
+    return Math.round((dTasks.filter((t) => t.done).length / dTasks.length) * 100);
+  };
+
+  // Segédfüggvény egy adott nap szokás-teljesítményének kinyerésére
+  const getHabitPctForDate = (dateStr) => {
+    if (!habits || habits.length === 0) return 0;
+    const log = habitLogs[dateStr] || {};
+    const doneCount = habits.filter((h) => ["done", "micro", "freeze"].includes(log[h.id]?.status)).length;
+    return Math.round((doneCount / habits.length) * 100);
+  };
+
+  const taskPctHistory = chartDays.map(getTaskPctForDate);
+  const habitPctHistory = chartDays.map(getHabitPctForDate);
+
+  // 7 napos mozgóátlag számítás
+  const calculateSMA7 = (history, targetIndex) => {
+    const targetDate = chartDays[targetIndex];
+    let sum = 0;
+    for (let i = 0; i < 7; i++) {
+      const d = offsetDateString(targetDate, -i);
+      const val = targetIndex === 13 ? (history === taskPctHistory ? getTaskPctForDate(d) : getHabitPctForDate(d)) : (history[targetIndex - i] ?? 0);
+      sum += val;
+    }
+    return Math.round(sum / 7);
+  };
+
+  const taskSMA7History = chartDays.map((_, idx) => calculateSMA7(taskPctHistory, idx));
+  const habitSMA7History = chartDays.map((_, idx) => calculateSMA7(habitPctHistory, idx));
+
+  // Vonaldiagram koordináták generálása SVG-hez (szélesség: 130px, magasság: 34px)
+  const buildSvgPath = (dataPoints) => {
+    const w = 130;
+    const h = 34;
+    return dataPoints
+      .map((val, idx) => {
+        const x = (idx / 13) * w;
+        const y = h - (val / 100) * (h - 6) - 3;
+        return `${idx === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`;
+      })
+      .join(" ");
+  };
+
+  // Feladat hozzáadása kategóriánként
   const handleAddCategoryTask = (category, e) => {
     e.preventDefault();
     if (!newQuickTaskTitle.trim()) return;
@@ -425,11 +485,32 @@ export default function App() {
     setAddingCategory(null);
   };
 
-  const toggleTask = (id) => {
+  // Feladat típusának módosítása (pl. Ütemezettből Big 3-be emelés)
+  const moveTaskType = (taskId, newType, e) => {
+    if (e) e.stopPropagation();
     setState((prev) => ({
       ...prev,
-      tasks: (prev.tasks || []).map((t) => (t.id === id ? { ...t, done: !t.done } : t))
+      tasks: (prev.tasks || []).map((t) => (t.id === taskId ? { ...t, type: newType } : t))
     }));
+  };
+
+  const toggleTask = (id) => {
+    setState((prev) => {
+      const currentTask = (prev.tasks || []).find((t) => t.id === id);
+      const isFinishing = currentTask && !currentTask.done;
+
+      const nextTasks = (prev.tasks || []).map((t) => (t.id === id ? { ...t, done: !t.done } : t));
+
+      // Ha a Big 3 feladatok közül mind kész lett a művelettel, indul a konfetti!
+      if (isFinishing && currentTask.type === "BIG3") {
+        const remainingBig3 = nextTasks.filter((t) => t.date === selectedDate && t.type === "BIG3" && !t.done);
+        if (remainingBig3.length === 0) {
+          triggerConfetti();
+        }
+      }
+
+      return { ...prev, tasks: nextTasks };
+    });
   };
 
   const deleteTask = (id, e) => {
@@ -463,7 +544,7 @@ export default function App() {
     });
   };
 
-  // Micro szokás gomb (CSAK SZÖVEGGEL, IKON NÉLKÜL)
+  // Micro szokás gomb (csak szöveggel, ikon nélkül)
   const handleSetMicroStatus = (habitId) => {
     setState((prev) => {
       const prevLogs = prev.habitLogs || {};
@@ -881,16 +962,104 @@ export default function App() {
       </header>
 
       {/* FŐ TARTALOM */}
-      <main className="p-4 space-y-5 flex-1">
+      <main className="p-4 space-y-4 flex-1">
         
         {/* ======================================================== */}
-        {/* 1. MA TAB: NAPI FELADATOK & CSOPORTOSÍTOTT SZOKÁSOK      */}
+        {/* 1. MA TAB: 14 NAPOS MIKROGRAFIKONOK + BIG 3 + EGYEBEK     */}
         {/* ======================================================== */}
         {activeTab === "today" && (
-          <div className="space-y-5">
+          <div className="space-y-4">
             
-            {/* BIG 3 PRIORITÁS */}
-            <section className="space-y-2">
+            {/* 14 NAPOS TELJESÍTMÉNY- ÉS MOZGÓÁTLAG (SMA7) MIKROGRAFIKONOK */}
+            <section className="grid grid-cols-2 gap-2 bg-slate-900/80 border border-slate-800 rounded-2xl p-2.5">
+              
+              {/* FELADATOK GRAFIKON */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-baseline text-[10px]">
+                  <span className="font-bold uppercase tracking-wider text-emerald-400">Feladatok (14 nap)</span>
+                  <span className="text-slate-400 font-semibold">{taskPctHistory[13]}%</span>
+                </div>
+                <div className="relative h-9 w-full bg-slate-950/70 rounded-lg p-0.5 border border-slate-800/80 overflow-hidden flex items-center justify-center">
+                  <svg className="w-full h-full" viewBox="0 0 130 34" preserveAspectRatio="none">
+                    {/* Hétvégi háttérsávok (szombat/vasárnap halvány szürke oszlopok) */}
+                    {chartDays.map((dStr, idx) => {
+                      const dayNum = new Date(dStr).getDay();
+                      if (dayNum === 0 || dayNum === 6) {
+                        return (
+                          <rect
+                            key={dStr}
+                            x={(idx / 13) * 130 - 4.5}
+                            y={0}
+                            width={9}
+                            height={34}
+                            fill="#334155"
+                            opacity={0.35}
+                          />
+                        );
+                      }
+                      return null;
+                    })}
+                    {/* Napi tényleges teljesítmény görbéje */}
+                    <path d={buildSvgPath(taskPctHistory)} fill="none" stroke="#10b981" strokeWidth="1.8" strokeLinecap="round" />
+                    {/* 7 napos mozgóátlag (SMA7) szaggatott sárgás görbéje */}
+                    <path d={buildSvgPath(taskSMA7History)} fill="none" stroke="#fbbf24" strokeWidth="1.4" strokeDasharray="2,2" strokeLinecap="round" opacity={0.9} />
+                    {/* A mai nap pontja (13. index) */}
+                    <circle cx={130} cy={34 - (taskPctHistory[13] / 100) * 28 - 3} r="2.5" fill="#10b981" />
+                  </svg>
+                </div>
+                <div className="flex justify-between text-[9px] text-slate-500 font-medium">
+                  <span>Ma: <strong className="text-emerald-400">{taskPctHistory[13]}%</strong></span>
+                  <span>SMA7: <strong className="text-amber-400">{taskSMA7History[13]}%</strong></span>
+                </div>
+              </div>
+
+              {/* SZOKÁSOK GRAFIKON */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-baseline text-[10px]">
+                  <span className="font-bold uppercase tracking-wider text-cyan-400">Szokások (14 nap)</span>
+                  <span className="text-slate-400 font-semibold">{habitPctHistory[13]}%</span>
+                </div>
+                <div className="relative h-9 w-full bg-slate-950/70 rounded-lg p-0.5 border border-slate-800/80 overflow-hidden flex items-center justify-center">
+                  <svg className="w-full h-full" viewBox="0 0 130 34" preserveAspectRatio="none">
+                    {chartDays.map((dStr, idx) => {
+                      const dayNum = new Date(dStr).getDay();
+                      if (dayNum === 0 || dayNum === 6) {
+                        return (
+                          <rect
+                            key={dStr}
+                            x={(idx / 13) * 130 - 4.5}
+                            y={0}
+                            width={9}
+                            height={34}
+                            fill="#334155"
+                            opacity={0.35}
+                          />
+                        );
+                      }
+                      return null;
+                    })}
+                    <path d={buildSvgPath(habitPctHistory)} fill="none" stroke="#06b6d4" strokeWidth="1.8" strokeLinecap="round" />
+                    <path d={buildSvgPath(habitSMA7History)} fill="none" stroke="#fbbf24" strokeWidth="1.4" strokeDasharray="2,2" strokeLinecap="round" opacity={0.9} />
+                    <circle cx={130} cy={34 - (habitPctHistory[13] / 100) * 28 - 3} r="2.5" fill="#06b6d4" />
+                  </svg>
+                </div>
+                <div className="flex justify-between text-[9px] text-slate-500 font-medium">
+                  <span>Ma: <strong className="text-cyan-400">{habitPctHistory[13]}%</strong></span>
+                  <span>SMA7: <strong className="text-amber-400">{habitSMA7History[13]}%</strong></span>
+                </div>
+              </div>
+
+            </section>
+
+            {/* 1. BIG 3 PRIORITÁS (FÓKUSZBAN, A KÉPERNYŐ KÖZEPÉN) */}
+            <section 
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                const taskId = e.dataTransfer.getData("taskId");
+                if (taskId) moveTaskType(taskId, "BIG3");
+              }}
+              className="space-y-2"
+            >
               <div className="flex justify-between items-center px-1">
                 <h2 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
                   <TargetIcon size={14} /> Big 3 prioritás ({big3Tasks.filter((t) => t.done).length}/{big3Tasks.length})
@@ -922,12 +1091,27 @@ export default function App() {
 
               <div className="space-y-1.5">
                 {big3Tasks.map((task) => (
-                  <div key={task.id} onClick={() => toggleTask(task.id)} className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition ${task.done ? "bg-emerald-950/20 border-emerald-800/40 text-slate-400 line-through" : "bg-slate-900 border-slate-800 text-slate-100"}`}>
+                  <div 
+                    key={task.id} 
+                    draggable
+                    onDragStart={(e) => e.dataTransfer.setData("taskId", task.id)}
+                    onClick={() => toggleTask(task.id)} 
+                    className={`p-3 rounded-xl border flex items-center justify-between cursor-pointer transition ${task.done ? "bg-emerald-950/20 border-emerald-800/40 text-slate-400 line-through" : "bg-slate-900 border-slate-800 text-slate-100 hover:border-slate-700"}`}
+                  >
                     <div className="flex items-center gap-2.5 pr-2">
                       {task.done ? <CheckCircleIcon size={18} className="text-emerald-400 shrink-0" /> : <CircleIcon size={18} className="text-slate-500 shrink-0" />}
                       <span className="text-xs font-medium">{task.title}</span>
                     </div>
-                    <button onClick={(e) => deleteTask(task.id, e)} className="text-slate-600 hover:text-red-400 p-1"><TrashIcon size={13} /></button>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button 
+                        onClick={(e) => moveTaskType(task.id, "SCHEDULED", e)} 
+                        className="text-[10px] text-slate-500 hover:text-blue-300 px-1.5 py-0.5 rounded hover:bg-slate-800 transition"
+                        title="Visszahelyezés az ütemezettek közé"
+                      >
+                        Ütemezve
+                      </button>
+                      <button onClick={(e) => deleteTask(task.id, e)} className="text-slate-600 hover:text-red-400 p-1"><TrashIcon size={13} /></button>
+                    </div>
                   </div>
                 ))}
                 {big3Tasks.length === 0 && addingCategory !== "BIG3" && (
@@ -936,8 +1120,15 @@ export default function App() {
               </div>
             </section>
 
-            {/* ÜTEMEZETT FELADATOK */}
-            <section className="space-y-2">
+            {/* 2. ÜTEMEZETT FELADATOK (EGYKOPPINTÁSOS FELHÚZÁSSAL ÉS DRAG & DROP-PAL) */}
+            <section 
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                const taskId = e.dataTransfer.getData("taskId");
+                if (taskId) moveTaskType(taskId, "SCHEDULED");
+              }}
+              className="space-y-2"
+            >
               <div className="flex justify-between items-center px-1">
                 <h2 className="text-xs font-bold uppercase tracking-wider text-blue-400 flex items-center gap-1.5">
                   Ütemezett teendők ({scheduledTasks.filter((t) => t.done).length}/{scheduledTasks.length})
@@ -969,12 +1160,30 @@ export default function App() {
 
               <div className="space-y-1.5">
                 {scheduledTasks.map((task) => (
-                  <div key={task.id} onClick={() => toggleTask(task.id)} className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition ${task.done ? "bg-slate-900/50 border-slate-800/60 text-slate-500 line-through" : "bg-slate-900 border-slate-800 text-slate-200"}`}>
+                  <div 
+                    key={task.id} 
+                    draggable
+                    onDragStart={(e) => e.dataTransfer.setData("taskId", task.id)}
+                    onClick={() => toggleTask(task.id)} 
+                    className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition ${task.done ? "bg-slate-900/50 border-slate-800/60 text-slate-500 line-through" : "bg-slate-900 border-slate-800 text-slate-200"}`}
+                  >
                     <div className="flex items-center gap-2.5 pr-2">
                       {task.done ? <CheckCircleIcon size={16} className="text-emerald-500 shrink-0" /> : <CircleIcon size={16} className="text-slate-600 shrink-0" />}
                       <span className="text-xs">{task.title}</span>
                     </div>
-                    <button onClick={(e) => deleteTask(task.id, e)} className="text-slate-600 hover:text-red-400 p-1"><TrashIcon size={13} /></button>
+
+                    {/* KÖZVETLEN FELHÚZÁS A BIG 3 KÖZÉ */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={(e) => moveTaskType(task.id, "BIG3", e)}
+                        className="bg-amber-500/10 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-[10px] font-semibold px-2 py-0.5 rounded-lg flex items-center gap-0.5 transition"
+                        title="Felhúzás a Big 3 prioritások közé"
+                      >
+                        <ArrowUpIcon size={11} />
+                        <span>Big3</span>
+                      </button>
+                      <button onClick={(e) => deleteTask(task.id, e)} className="text-slate-600 hover:text-red-400 p-1"><TrashIcon size={13} /></button>
+                    </div>
                   </div>
                 ))}
                 {scheduledTasks.length === 0 && addingCategory !== "SCHEDULED" && (
@@ -983,11 +1192,11 @@ export default function App() {
               </div>
             </section>
 
-            {/* MINI FELADATOK */}
+            {/* 3. MINI FELADATOK (SZÖVEG LEVÉVE) */}
             <section className="space-y-2">
               <div className="flex justify-between items-center px-1">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Mini feladatok (0% súlyozás) ({miniTasks.filter((t) => t.done).length}/{miniTasks.length})
+                  Mini feladatok ({miniTasks.filter((t) => t.done).length}/{miniTasks.length})
                 </span>
                 <button
                   onClick={() => setAddingCategory(addingCategory === "DAILY5_MINI" ? null : "DAILY5_MINI")}
@@ -1027,11 +1236,10 @@ export default function App() {
               </div>
             </section>
 
-            {/* NAPI SZOKÁSOK */}
+            {/* 4. NAPI SZOKÁSOK (TISZTA FEJLÉC, FELESLEGES T-3 SZÖVEG NÉLKÜL) */}
             <section className="space-y-4 pt-3">
               <div className="flex justify-between items-center px-1 border-b border-slate-800/80 pb-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">Napi Szokások</span>
-                <span className="text-[10px] text-slate-500">T-3 | T-2 | T-1 | <strong>MA</strong> | +1</span>
               </div>
 
               <div className="space-y-4">
@@ -1097,19 +1305,19 @@ export default function App() {
                                   </span>
                                   <span>21 nap: {rate21}</span>
 
-                                  {/* 🧊 FAGYASZTÓ */}
+                                  {/* 🧊 FAGYASZTÓ GOMB */}
                                   <button
                                     onClick={() => handleApplyFreeze(habit.id)}
                                     className={`px-1.5 py-0.5 rounded flex items-center gap-0.5 border text-[9px] transition ${
                                       currentStatus === "freeze" ? "bg-blue-500/30 text-blue-300 border-blue-400" : "bg-slate-950 text-slate-400 border-slate-800 hover:text-blue-300 hover:border-blue-500/40"
                                     }`}
-                                    title="Szériabefagyasztás"
+                                    title="Szériabefagyasztás (ma vagy kimaradt tegnap megmentése)"
                                   >
                                     <span>🧊</span>
                                     <span>{freezeCount}</span>
                                   </button>
 
-                                  {/* MICRO GOMB (CSAK SZÖVEG) */}
+                                  {/* MICRO GOMB (TISZTÁN SZÖVEG) */}
                                   <button
                                     onClick={() => handleSetMicroStatus(habit.id)}
                                     className={`px-1.5 py-0.5 rounded border text-[9px] font-semibold transition ${
@@ -1173,7 +1381,7 @@ export default function App() {
               </div>
             </section>
 
-            {/* HETI RUTINOK ÁTEMELÉSE */}
+            {/* 5. HETI RUTINOK ÁTEMELÉSE */}
             <section className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
               <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
                 Heti események átemelése a napi listába
@@ -1481,7 +1689,7 @@ export default function App() {
 
       </main>
 
-      {/* ALSÓ MENÜSÁV (SAFE-AREA FIXELT, NEM TOLÓDIK LE) */}
+      {/* ALSÓ MENÜSÁV */}
       <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-slate-900/95 backdrop-blur border-t border-slate-800 px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex justify-around items-center z-30">
         <button onClick={() => setActiveTab("today")} className={`flex flex-col items-center gap-1 transition ${activeTab === "today" ? "text-emerald-400" : "text-slate-500 hover:text-slate-300"}`}>
           <CalendarIcon size={18} />
