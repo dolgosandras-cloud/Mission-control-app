@@ -10,7 +10,7 @@ const HEADERS = {
   "Content-Type": "application/json"
 };
 
-// --- BEÉPÍTETT SVG IKONOK ---
+// --- SVG IKONOK ---
 const CheckCircleIcon = ({ size = 20, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
@@ -84,12 +84,6 @@ const EditIcon = ({ size = 15, className = "" }) => (
   </svg>
 );
 
-const ChevronDownIcon = ({ size = 16, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <polyline points="6 9 12 15 18 9" />
-  </svg>
-);
-
 const ChevronLeftIcon = ({ size = 18, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <polyline points="15 18 9 12 15 6" />
@@ -123,10 +117,18 @@ const UserIcon = ({ size = 14, className = "" }) => (
   </svg>
 );
 
-const ArrowRightIcon = ({ size = 14, className = "" }) => (
+const FlameIcon = ({ size = 14, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <line x1="5" y1="12" x2="19" y2="12" />
-    <polyline points="12 5 19 12 12 19" />
+    <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+  </svg>
+);
+
+const SnowflakeIcon = ({ size = 14, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <line x1="12" y1="2" x2="12" y2="22" />
+    <line x1="2" y1="12" x2="22" y2="12" />
+    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+    <line x1="19.07" y1="4.93" x2="4.93" y2="19.07" />
   </svg>
 );
 
@@ -165,12 +167,16 @@ const DAILY_QUOTES = [
   { text: "A leggyorsabb út a sikerhez, ha abbahagyod a kifogások keresését, és elkezdesz építeni.", author: "Chris Williamson" }
 ];
 
+// Dátumkezelő segédfüggvények
 function getTodayDateString() {
   const d = new Date();
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function offsetDateString(baseDateStr, dayOffset) {
+  const d = new Date(baseDateStr);
+  d.setDate(d.getDate() + dayOffset);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function getCurrentWeekNumber() {
@@ -187,7 +193,6 @@ function formatShortDate(dateStr) {
   return parts.length === 3 ? `${parts[1]}.${parts[2]}` : dateStr;
 }
 
-// ÜRES BIZTONSÁGI ALAPVÁZ (NINCSENEK TESZTADATOK)
 const FALLBACK_EMPTY_STATE = {
   sprint: {
     id: "sprint-1",
@@ -197,28 +202,66 @@ const FALLBACK_EMPTY_STATE = {
     milestones: []
   },
   tasks: [],
-  habits: [
-    { id: "h1", title: "Hideg zuhany & légzés", block: "morning" },
-    { id: "h2", title: "15 perc nyújtás / mobilitás", block: "morning" },
-    { id: "h3", title: "Napi fókusz kijelölése (Big3)", block: "morning" },
-    { id: "h4", title: "45 perc edzés (Kardió/Erősítés)", block: "fitness" },
-    { id: "h5", title: "Képernyőmentes este 21:00 után", block: "evening" }
-  ],
+  habits: [],
   habitLogs: {},
+  freezes: {}, // Pl. { "2026-09-05": { "WIN THE MORNING": 1 } }
+  weeklyTemplates: [
+    { id: "wt1", title: "Viráglocsolás", domain: "Otthon & Lakás" },
+    { id: "wt2", title: "Heti tervezés & visszatekintés", domain: "Karrier & Munka" },
+    { id: "wt3", title: "Heti nagybevásárlás", domain: "Otthon & Lakás" }
+  ],
   visionAreas: []
 };
 
+// Vizuális konfetti effekt (HTML5 Canvas)
+function triggerConfetti() {
+  const canvas = document.createElement("canvas");
+  canvas.className = "fixed inset-0 pointer-events-none z-50 w-full h-full";
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext("2d");
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const particles = Array.from({ length: 50 }).map(() => ({
+    x: canvas.width / 2,
+    y: canvas.height / 3,
+    vx: (Math.random() - 0.5) * 12,
+    vy: (Math.random() - 0.5) * 12 - 4,
+    size: Math.random() * 6 + 3,
+    color: ["#10b981", "#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6"][Math.floor(Math.random() * 5)],
+    alpha: 1
+  }));
+
+  let frame = 0;
+  function animate() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach((p) => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.3;
+      p.alpha -= 0.02;
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = Math.max(0, p.alpha);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    frame++;
+    if (frame < 50) requestAnimationFrame(animate);
+    else document.body.removeChild(canvas);
+  }
+  animate();
+}
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState("sprint");
+  const [activeTab, setActiveTab] = useState("today"); // Alapértelmezésben a MA nézet nyílik
   const todayActualStr = getTodayDateString();
   const [selectedDate, setSelectedDate] = useState(todayActualStr);
 
   const initialWeekNum = getCurrentWeekNumber();
   const [selectedWeekNum, setSelectedWeekNum] = useState(initialWeekNum);
   const currentWeekKey = `2026-W${selectedWeekNum}`;
-  const prevWeekKey = `2026-W${selectedWeekNum - 1}`;
 
-  // Kezdeti állapot kizárólag a helyi gyorstárból
   const [state, setState] = useState(() => {
     const saved = localStorage.getItem("mc_cloud_state");
     return saved ? JSON.parse(saved) : FALLBACK_EMPTY_STATE;
@@ -228,9 +271,9 @@ export default function App() {
   const isInternalUpdate = useRef(false);
   const isLoadedFromServer = useRef(false);
 
+  // Sprint lap
   const [activeAreaIndex, setActiveAreaIndex] = useState(0);
   const touchStartX = useRef(null);
-
   const [isEditingSprintHeader, setIsEditingSprintHeader] = useState(false);
   const [sprintHeaderForm, setSprintHeaderForm] = useState({
     name: state.sprint?.name || "Sprint Fókusz",
@@ -243,19 +286,22 @@ export default function App() {
   const [newSprintGoal, setNewSprintGoal] = useState("");
   const [newWeeklyGoal, setNewWeeklyGoal] = useState("");
 
+  // Hét nézet
   const [quickAddAreaTitle, setQuickAddAreaTitle] = useState(null);
   const [quickAddWeeklyText, setQuickAddWeeklyText] = useState("");
 
+  // Napi nézet
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskType, setNewTaskType] = useState("BIG3");
 
+  // Iránytű lap
   const [expandedAreaId, setExpandedAreaId] = useState(null);
   const [editingAreaId, setEditingAreaId] = useState(null);
   const [editForm, setEditForm] = useState({ title: "", hell: "", ideal: "", nextBigGoal: "" });
   const [isAddingNewArea, setIsAddingNewArea] = useState(false);
   const [newAreaTitle, setNewAreaTitle] = useState("");
 
-  // 1. SZINKRONIZÁCIÓ SUPABASE-SZEL (KIZÁRÓLAG AZ ADATBÁZISBÓL DOLGOZIK)
+  // 1. SZINKRONIZÁCIÓ SUPABASE-SZEL
   useEffect(() => {
     async function fetchServerState() {
       try {
@@ -283,7 +329,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // 2. HELYI MENTÉS (CSAK HA MÁR EGYSZER BETÖLTÖTT A SZERVERRŐL, ÍGY NEM ÍRJA FELÜL SEMMI)
+  // 2. HELYI MENTÉS A SUPABASE-BE
   useEffect(() => {
     if (isInternalUpdate.current) {
       isInternalUpdate.current = false;
@@ -318,69 +364,169 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [state]);
 
-  const { sprint = FALLBACK_EMPTY_STATE.sprint, tasks = [], habits = [], habitLogs = {}, visionAreas = [] } = state;
+  const { sprint = FALLBACK_EMPTY_STATE.sprint, tasks = [], habits = [], habitLogs = {}, freezes = {}, weeklyTemplates = FALLBACK_EMPTY_STATE.weeklyTemplates, visionAreas = [] } = state;
   const currentArea = visionAreas[activeAreaIndex] || visionAreas[0];
 
-  // Automatikus idősáv
-  const sprintStart = new Date(sprint.startDate || getTodayDateString()).getTime();
-  const sprintEnd = new Date(sprint.endDate || getTodayDateString()).getTime();
-  const actualNowTime = new Date().getTime();
+  // Csoportok kigyűjtése a szokásokból
+  const habitGroups = Array.from(new Set(habits.map((h) => h.group || "ÁLTALÁNOS")));
 
-  let sprintTimePct = 0;
-  if (sprintEnd > sprintStart) {
-    const elapsed = actualNowTime - sprintStart;
-    const total = sprintEnd - sprintStart;
-    sprintTimePct = Math.min(100, Math.max(0, Math.round((elapsed / total) * 100)));
-  }
+  // 5 napos idősáv dátumai a kiválasztott naphoz képest: T-3, T-2, T-1, MA, Holnap (+1)
+  const timelineDates = [-3, -2, -1, 0, 1].map((offset) => offsetDateString(selectedDate, offset));
 
-  const milestones = sprint.milestones || [];
-  const completedMilestones = milestones.filter((m) => m.done).length;
-  const totalMilestones = milestones.length;
-  const sprintTaskPct = totalMilestones > 0 ? Math.round((completedMilestones / totalMilestones) * 100) : 0;
-
-  // Heti számítások
-  const currentWeekTasks = tasks.filter((t) => (t.week || `2026-W${initialWeekNum}`) === currentWeekKey);
-  const completedWeekTasks = currentWeekTasks.filter((t) => t.done).length;
-  const weekHitRate = currentWeekTasks.length > 0 ? Math.round((completedWeekTasks / currentWeekTasks.length) * 100) : 0;
-  const plannedAreasCount = visionAreas.filter((a) => currentWeekTasks.some((t) => t.domain === a.title)).length;
-  
-  const currentDayOfWeekNum = new Date().getDay() || 7;
-  const weekTimePct = Math.min(100, Math.max(0, Math.round((currentDayOfWeekNum / 7) * 100)));
-
-  const pendingPrevWeekGoals = currentArea ? tasks.filter(
-    (t) => t.domain === currentArea.title && (t.week || `2026-W${initialWeekNum}`) === prevWeekKey && !t.done
-  ) : [];
-
+  // Napi szűrt feladatok és statisztikák
   const currentDayTasks = tasks.filter((t) => (t.date || todayActualStr) === selectedDate);
   const scoredDayTasks = currentDayTasks.filter((t) => t.type === "BIG3" || t.type === "SCHEDULED");
   const completedDayScored = scoredDayTasks.filter((t) => t.done).length;
   const dayTaskPct = scoredDayTasks.length > 0 ? Math.round((completedDayScored / scoredDayTasks.length) * 100) : 0;
-  const todayHabitLog = habitLogs?.[selectedDate] || {};
-  const completedHabits = habits.filter((h) => !!todayHabitLog[h.id]).length;
-  const dayHabitPct = habits.length > 0 ? Math.round((completedHabits / habits.length) * 100) : 0;
 
-  const dayOfYear = Math.floor((actualNowTime - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000);
+  // Kiválasztott napi szokások aránya
+  const dayLog = habitLogs[selectedDate] || {};
+  const completedDayHabitsCount = habits.filter((h) => !!dayLog[h.id]?.done).length;
+  const dayHabitPct = habits.length > 0 ? Math.round((completedDayHabitsCount / habits.length) * 100) : 0;
+
+  // Napi rotálódó idézet
+  const dayOfYear = Math.floor((new Date(selectedDate).getTime() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000);
   const todayQuote = DAILY_QUOTES[Math.abs(dayOfYear) % DAILY_QUOTES.length];
 
-  // Swipe
+  // Szokás pipálása adott dátumra + automatikus csoport-teljesülés és konfetti
+  const toggleHabitDate = (habitId, dateStr, groupName) => {
+    setState((prev) => {
+      const prevLogs = prev.habitLogs || {};
+      const currentDay = prevLogs[dateStr] || {};
+      const wasDone = !!currentDay[habitId]?.done;
+      const newDone = !wasDone;
+
+      const updatedDay = {
+        ...currentDay,
+        [habitId]: {
+          done: newDone,
+          completedAt: newDone ? new Date().toISOString() : null
+        }
+      };
+
+      // Ha most lett kész, ellenőrizzük, hogy a csoport összes többi eleme kész van-e már
+      if (newDone && groupName) {
+        const groupHabits = (prev.habits || []).filter((h) => h.group === groupName);
+        const allOthersDone = groupHabits.every((h) => h.id === habitId || !!updatedDay[h.id]?.done);
+        if (allOthersDone) {
+          triggerConfetti();
+        }
+      }
+
+      return {
+        ...prev,
+        habitLogs: {
+          ...prevLogs,
+          [dateStr]: updatedDay
+        }
+      };
+    });
+  };
+
+  // Szériabefagyasztó (Freeze) aktiválása (max 2 / csoport / nap)
+  const handleFreezeGroup = (groupName) => {
+    const dayFreezes = freezes[selectedDate] || {};
+    const currentCount = dayFreezes[groupName] || 0;
+    if (currentCount >= 2) {
+      alert(`Ebben a csoportban ma már felhasználtad a maximális 2 szériabefagyasztót!`);
+      return;
+    }
+
+    setState((prev) => {
+      const prevFreezes = prev.freezes || {};
+      const day = prevFreezes[selectedDate] || {};
+      return {
+        ...prev,
+        freezes: {
+          ...prevFreezes,
+          [selectedDate]: {
+            ...day,
+            [groupName]: (day[groupName] || 0) + 1
+          }
+        }
+      };
+    });
+  };
+
+  // Streak és 21 napos ráta kalkuláció egy szokáshoz
+  const getHabitStats = (habitId) => {
+    let completedIn21 = 0;
+    for (let i = 0; i < 21; i++) {
+      const d = offsetDateString(selectedDate, -i);
+      if (habitLogs[d]?.[habitId]?.done) completedIn21++;
+    }
+
+    let streak = 0;
+    for (let i = 0; i < 60; i++) {
+      const d = offsetDateString(selectedDate, -i);
+      if (habitLogs[d]?.[habitId]?.done) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    return { streak, rate21: `${completedIn21}/21` };
+  };
+
+  // Heti sablon / meeting közvetlen átemelése a napi listába
+  const handleImportWeeklyTemplate = (template, type = "BIG3") => {
+    const newTask = {
+      id: `task-${Date.now()}`,
+      date: selectedDate,
+      week: currentWeekKey,
+      title: template.title,
+      domain: template.domain,
+      type: type,
+      done: false
+    };
+    setState((prev) => ({
+      ...prev,
+      tasks: [newTask, ...(prev.tasks || [])]
+    }));
+  };
+
+  // Általános feladatkezelők
+  const toggleTask = (id) => {
+    setState((prev) => ({
+      ...prev,
+      tasks: (prev.tasks || []).map((t) => (t.id === id ? { ...t, done: !t.done } : t))
+    }));
+  };
+
+  const deleteTask = (id, e) => {
+    e.stopPropagation();
+    setState((prev) => ({
+      ...prev,
+      tasks: (prev.tasks || []).filter((t) => t.id !== id)
+    }));
+  };
+
+  const handleAddTask = (e) => {
+    e.preventDefault();
+    if (!newTaskTitle.trim()) return;
+    const newTask = {
+      id: `task-${Date.now()}`,
+      date: selectedDate,
+      week: currentWeekKey,
+      title: newTaskTitle.trim(),
+      type: newTaskType,
+      done: false
+    };
+    setState((prev) => ({
+      ...prev,
+      tasks: [newTask, ...(prev.tasks || [])]
+    }));
+    setNewTaskTitle("");
+  };
+
+  // Sprint kezelők
   const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchEnd = (e) => {
     if (!touchStartX.current || visionAreas.length === 0) return;
     const diff = touchStartX.current - e.changedTouches[0].clientX;
-    if (diff > 50) goToNextArea();
-    else if (diff < -50) goToPrevArea();
+    if (diff > 50) setActiveAreaIndex((p) => (p + 1 < visionAreas.length ? p + 1 : 0));
+    else if (diff < -50) setActiveAreaIndex((p) => (p - 1 >= 0 ? p - 1 : visionAreas.length - 1));
     touchStartX.current = null;
-  };
-
-  const goToNextArea = () => {
-    setActiveAreaIndex((p) => (p + 1 < visionAreas.length ? p + 1 : 0));
-    setIsAddingSprintMilestone(false);
-    setIsAddingSprintWeekly(false);
-  };
-  const goToPrevArea = () => {
-    setActiveAreaIndex((p) => (p - 1 >= 0 ? p - 1 : visionAreas.length - 1));
-    setIsAddingSprintMilestone(false);
-    setIsAddingSprintWeekly(false);
   };
 
   const saveSprintHeader = (e) => {
@@ -400,16 +546,8 @@ export default function App() {
   const handleAddSprintGoal = (e) => {
     e.preventDefault();
     if (!newSprintGoal.trim() || !currentArea) return;
-    const newM = {
-      id: `m-${Date.now()}`,
-      title: newSprintGoal.trim(),
-      domain: currentArea.title,
-      done: false
-    };
-    setState((prev) => ({
-      ...prev,
-      sprint: { ...prev.sprint, milestones: [...(prev.sprint.milestones || []), newM] }
-    }));
+    const newM = { id: `m-${Date.now()}`, title: newSprintGoal.trim(), domain: currentArea.title, done: false };
+    setState((prev) => ({ ...prev, sprint: { ...prev.sprint, milestones: [...(prev.sprint.milestones || []), newM] } }));
     setNewSprintGoal("");
     setIsAddingSprintMilestone(false);
   };
@@ -417,97 +555,22 @@ export default function App() {
   const handleAddWeeklyGoalFromSprint = (e) => {
     e.preventDefault();
     if (!newWeeklyGoal.trim() || !currentArea) return;
-    const newTask = {
-      id: `task-${Date.now()}`,
-      date: selectedDate,
-      week: currentWeekKey,
-      title: newWeeklyGoal.trim(),
-      domain: currentArea.title,
-      type: "SCHEDULED",
-      done: false
-    };
-    setState((prev) => ({ ...prev, tasks: [newTask, ...prev.tasks] }));
+    const newTask = { id: `task-${Date.now()}`, date: selectedDate, week: currentWeekKey, title: newWeeklyGoal.trim(), domain: currentArea.title, type: "SCHEDULED", done: false };
+    setState((prev) => ({ ...prev, tasks: [newTask, ...(prev.tasks || [])] }));
     setNewWeeklyGoal("");
     setIsAddingSprintWeekly(false);
   };
 
-  const handleRolloverPendingGoals = () => {
-    if (pendingPrevWeekGoals.length === 0) return;
-    const copiedTasks = pendingPrevWeekGoals.map((t) => ({
-      ...t,
-      id: `task-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
-      week: currentWeekKey,
-      done: false
-    }));
-    setState((prev) => ({ ...prev, tasks: [...prev.tasks, ...copiedTasks] }));
-  };
-
-  const handleQuickAddWeekly = (domainTitle, e) => {
-    e.preventDefault();
-    if (!quickAddWeeklyText.trim()) return;
-    const newTask = {
-      id: `task-${Date.now()}`,
-      date: selectedDate,
-      week: currentWeekKey,
-      title: quickAddWeeklyText.trim(),
-      domain: domainTitle,
-      type: "SCHEDULED",
-      done: false
-    };
-    setState((prev) => ({ ...prev, tasks: [newTask, ...prev.tasks] }));
-    setQuickAddWeeklyText("");
-    setQuickAddAreaTitle(null);
-  };
-
-  const toggleTask = (id) => {
-    setState((prev) => ({ ...prev, tasks: prev.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)) }));
-  };
-
-  const deleteTask = (id, e) => {
-    e.stopPropagation();
-    setState((prev) => ({ ...prev, tasks: prev.tasks.filter((t) => t.id !== id) }));
-  };
-
   const toggleMilestone = (id) => {
-    setState((prev) => ({
-      ...prev,
-      sprint: { ...prev.sprint, milestones: (prev.sprint.milestones || []).map((m) => (m.id === id ? { ...m, done: !m.done } : m)) }
-    }));
+    setState((prev) => ({ ...prev, sprint: { ...prev.sprint, milestones: (prev.sprint.milestones || []).map((m) => (m.id === id ? { ...m, done: !m.done } : m)) } }));
   };
 
   const deleteMilestone = (id, e) => {
     e.stopPropagation();
-    setState((prev) => ({
-      ...prev,
-      sprint: { ...prev.sprint, milestones: (prev.sprint.milestones || []).filter((m) => m.id !== id) }
-    }));
+    setState((prev) => ({ ...prev, sprint: { ...prev.sprint, milestones: (prev.sprint.milestones || []).filter((m) => m.id !== id) } }));
   };
 
-  const toggleHabit = (dateKey, habitId) => {
-    setState((prev) => {
-      const day = prev.habitLogs?.[dateKey] || {};
-      return {
-        ...prev,
-        habitLogs: { ...prev.habitLogs, [dateKey]: { ...day, [habitId]: !day[habitId] } }
-      };
-    });
-  };
-
-  const handleAddTask = (e) => {
-    e.preventDefault();
-    if (!newTaskTitle.trim()) return;
-    const newTask = {
-      id: `task-${Date.now()}`,
-      date: selectedDate,
-      week: currentWeekKey,
-      title: newTaskTitle.trim(),
-      type: newTaskType,
-      done: false
-    };
-    setState((prev) => ({ ...prev, tasks: [newTask, ...prev.tasks] }));
-    setNewTaskTitle("");
-  };
-
+  // Iránytű kezelők
   const toggleAreaExpand = (id) => { if (!editingAreaId) setExpandedAreaId((p) => (p === id ? null : id)); };
   const startEditArea = (area, e) => {
     e.stopPropagation();
@@ -517,19 +580,13 @@ export default function App() {
   };
   const saveEditArea = (id, e) => {
     e.stopPropagation();
-    setState((prev) => ({
-      ...prev,
-      visionAreas: prev.visionAreas.map((a) => (a.id === id ? { ...a, ...editForm } : a))
-    }));
+    setState((prev) => ({ ...prev, visionAreas: prev.visionAreas.map((a) => (a.id === id ? { ...a, ...editForm } : a)) }));
     setEditingAreaId(null);
   };
   const deleteArea = (id, e) => {
     e.stopPropagation();
     if (!window.confirm("Biztosan törölni szeretnéd ezt az életterületet?")) return;
-    setState((prev) => ({
-      ...prev,
-      visionAreas: prev.visionAreas.filter((a) => a.id !== id)
-    }));
+    setState((prev) => ({ ...prev, visionAreas: prev.visionAreas.filter((a) => a.id !== id) }));
     setEditingAreaId(null);
     setExpandedAreaId(null);
   };
@@ -554,178 +611,105 @@ export default function App() {
       {/* ========================================================================= */}
       <header className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur border-b border-slate-800 shadow-md">
         
-        {/* 1. SPRINT NÉZET FEJLÉCE */}
-        {activeTab === "sprint" && (
+        {/* MA NÉZET FEJLÉCE: KÉT KÖRDIAGRAM AZ AKTUÁLISAN KIVÁLASZTOTT NAPRA */}
+        {activeTab === "today" && (
           <div className="p-3 space-y-2">
-            <div>
-              <div className="flex justify-between items-center text-[10px] text-slate-400 font-semibold mb-1">
-                <span onClick={() => setIsEditingSprintHeader(true)} className="cursor-pointer hover:text-white">
-                  {formatShortDate(sprint.startDate)}
-                </span>
-                <span className="text-amber-400 flex items-center gap-1 font-bold">
-                  Ma: {formatShortDate(todayActualStr)} ({sprintTimePct}%)
-                </span>
-                <span onClick={() => setIsEditingSprintHeader(true)} className="cursor-pointer hover:text-white">
-                  {formatShortDate(sprint.endDate)}
-                </span>
-              </div>
-              <div className="relative h-2 bg-slate-900 rounded-full flex items-center border border-slate-800">
-                <div className="h-full bg-gradient-to-r from-amber-600 to-amber-500 rounded-full" style={{ width: `${sprintTimePct}%` }} />
-                <div className="absolute -top-1.5 -ml-2 bg-slate-950 text-amber-400 rounded-full p-0.5 border border-amber-500" style={{ left: `${sprintTimePct}%` }}>
-                  <SunIcon size={12} />
-                </div>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center text-[10px] text-slate-400 font-semibold mb-1">
-                <span>0%</span>
-                <span className="text-emerald-400 flex items-center gap-1 font-bold">
-                  Sprint-célok: {completedMilestones}/{totalMilestones} ({sprintTaskPct}%)
-                </span>
-                <span>100%</span>
-              </div>
-              <div className="relative h-2 bg-slate-900 rounded-full flex items-center border border-slate-800">
-                <div className="h-full bg-gradient-to-r from-emerald-600 to-emerald-400 rounded-full" style={{ width: `${sprintTaskPct}%` }} />
-                <div className="absolute -top-1.5 -ml-2 bg-slate-950 text-emerald-400 rounded-full p-0.5 border border-emerald-500" style={{ left: `${sprintTaskPct}%` }}>
-                  <UserIcon size={12} />
-                </div>
-              </div>
-            </div>
-
-            <div className="pt-1 flex justify-between items-center text-xs">
-              {!isEditingSprintHeader ? (
-                <div 
-                  onClick={() => {
-                    setSprintHeaderForm({ name: sprint.name, startDate: sprint.startDate, endDate: sprint.endDate });
-                    setIsEditingSprintHeader(true);
-                  }}
-                  className="flex items-center gap-1.5 font-bold text-slate-100 hover:text-emerald-400 cursor-pointer transition"
-                >
-                  <TargetIcon size={14} className="text-emerald-400" />
-                  <span>{sprint.name}</span>
-                  <EditIcon size={12} className="text-slate-500 ml-1" />
-                </div>
-              ) : (
-                <form onSubmit={saveSprintHeader} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 space-y-2">
-                  <div className="text-[11px] font-bold text-slate-300">Sprint időszak szerkesztése:</div>
-                  <input 
-                    type="text"
-                    value={sprintHeaderForm.name}
-                    onChange={(e) => setSprintHeaderForm({ ...sprintHeaderForm, name: e.target.value })}
-                    className="w-full bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs text-slate-100"
-                    placeholder="Sprint neve..."
-                  />
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <label className="text-[9px] text-slate-400 block">Kezdés dátuma:</label>
-                      <input 
-                        type="date"
-                        value={sprintHeaderForm.startDate}
-                        onChange={(e) => setSprintHeaderForm({ ...sprintHeaderForm, startDate: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-[11px] text-slate-200"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <label className="text-[9px] text-slate-400 block">Zárás dátuma:</label>
-                      <input 
-                        type="date"
-                        value={sprintHeaderForm.endDate}
-                        onChange={(e) => setSprintHeaderForm({ ...sprintHeaderForm, endDate: e.target.value })}
-                        className="w-full bg-slate-950 border border-slate-800 rounded px-1.5 py-1 text-[11px] text-slate-200"
-                      />
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-2 pt-1">
-                    <button type="button" onClick={() => setIsEditingSprintHeader(false)} className="text-xs text-slate-400 px-2 py-0.5">Mégse</button>
-                    <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1 rounded font-semibold">Mentés</button>
-                  </div>
-                </form>
-              )}
-
-              {!isEditingSprintHeader && (
-                <div className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${syncStatus === "synced" ? "text-emerald-400" : "text-amber-400"}`}>
-                  <CloudIcon size={11} />
-                  <span>{syncStatus === "synced" ? "Élő" : "Mentés..."}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* 2. HÉT NÉZET FEJLÉCE */}
-        {activeTab === "week" && (
-          <div className="p-3 space-y-2">
-            <div className="flex justify-between items-center">
-              <button onClick={() => setSelectedWeekNum((p) => p - 1)} className="p-1 hover:bg-slate-800 rounded text-slate-400">
+            {/* Napi léptető */}
+            <div className="flex justify-between items-center text-xs">
+              <button 
+                onClick={() => setSelectedDate(offsetDateString(selectedDate, -1))}
+                className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition"
+              >
                 <ChevronLeftIcon size={16} />
               </button>
+              
               <div className="text-center">
-                <span className="text-xs font-extrabold text-emerald-400 uppercase tracking-wider">
-                  {selectedWeekNum}. Hét {selectedWeekNum === initialWeekNum && "(Aktuális)"}
+                <span className="font-extrabold text-slate-100 uppercase tracking-wider">
+                  {selectedDate === todayActualStr ? "MA" : formatShortDate(selectedDate)} ({selectedDate})
                 </span>
-                <span className="text-[10px] text-slate-400 block">
-                  Pontosság: <strong className="text-white">{weekHitRate}%</strong> | Lefedettség: <strong className="text-white">{plannedAreasCount}/7 terület</strong>
-                </span>
+                {selectedDate !== todayActualStr && (
+                  <button 
+                    onClick={() => setSelectedDate(todayActualStr)} 
+                    className="text-[10px] text-emerald-400 block mx-auto underline mt-0.5"
+                  >
+                    Vissza a mai napra
+                  </button>
+                )}
               </div>
-              <button onClick={() => setSelectedWeekNum((p) => p + 1)} className="p-1 hover:bg-slate-800 rounded text-slate-400">
+
+              <button 
+                onClick={() => setSelectedDate(offsetDateString(selectedDate, 1))}
+                className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800 transition"
+              >
                 <ChevronRightIcon size={16} />
               </button>
             </div>
 
-            <div className="space-y-1.5 pt-1">
-              <div className="relative h-1.5 bg-slate-900 rounded-full flex items-center border border-slate-800">
-                <div className="h-full bg-amber-500 rounded-full" style={{ width: `${weekTimePct}%` }} />
-                <div className="absolute -top-1.5 -ml-2 bg-slate-950 text-amber-400 rounded-full p-0.5 border border-amber-500" style={{ left: `${weekTimePct}%` }}>
-                  <SunIcon size={10} />
+            {/* A két kördiagram (kizárólag a kiválasztott napra) */}
+            <div className="flex items-center justify-around pt-1">
+              <div className="flex items-center gap-3">
+                <div className="relative w-11 h-11 flex items-center justify-center">
+                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                    <path className="text-slate-800" strokeWidth="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                    <path className="text-emerald-500 transition-all duration-300" strokeDasharray={`${dayTaskPct}, 100`} strokeWidth="4" strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                  </svg>
+                  <span className="absolute text-[10px] font-extrabold text-white">{dayTaskPct}%</span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Napi Feladat</span>
+                  <span className="text-xs font-semibold text-slate-200">{completedDayScored}/{scoredDayTasks.length}</span>
                 </div>
               </div>
-              <div className="relative h-1.5 bg-slate-900 rounded-full flex items-center border border-slate-800">
-                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${weekHitRate}%` }} />
-                <div className="absolute -top-1.5 -ml-2 bg-slate-950 text-emerald-400 rounded-full p-0.5 border border-emerald-500" style={{ left: `${weekHitRate}%` }}>
-                  <UserIcon size={10} />
+
+              <div className="h-7 w-[1px] bg-slate-800" />
+
+              <div className="flex items-center gap-3">
+                <div className="relative w-11 h-11 flex items-center justify-center">
+                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                    <path className="text-slate-800" strokeWidth="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                    <path className="text-cyan-400 transition-all duration-300" strokeDasharray={`${dayHabitPct}, 100`} strokeWidth="4" strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                  </svg>
+                  <span className="absolute text-[10px] font-extrabold text-white">{dayHabitPct}%</span>
+                </div>
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Napi Szokás</span>
+                  <span className="text-xs font-semibold text-slate-200">{completedDayHabitsCount}/{habits.length}</span>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* 3. MA NÉZET FEJLÉCE */}
-        {activeTab === "today" && (
-          <div className="p-3 flex items-center justify-around">
-            <div className="flex items-center gap-3">
-              <div className="relative w-12 h-12 flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                  <path className="text-slate-800" strokeWidth="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                  <path className="text-emerald-500" strokeDasharray={`${dayTaskPct}, 100`} strokeWidth="4" strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                </svg>
-                <span className="absolute text-[11px] font-extrabold text-white">{dayTaskPct}%</span>
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Feladatok</span>
-                <span className="text-xs font-semibold text-slate-200">{completedDayScored}/{scoredDayTasks.length}</span>
-              </div>
-            </div>
-
-            <div className="h-8 w-[1px] bg-slate-800" />
-
-            <div className="flex items-center gap-3">
-              <div className="relative w-12 h-12 flex items-center justify-center">
-                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
-                  <path className="text-slate-800" strokeWidth="4" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                  <path className="text-cyan-400" strokeDasharray={`${dayHabitPct}, 100`} strokeWidth="4" strokeLinecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                </svg>
-                <span className="absolute text-[11px] font-extrabold text-white">{dayHabitPct}%</span>
-              </div>
-              <div>
-                <span className="text-[10px] uppercase font-bold text-slate-400 block">Szokások</span>
-                <span className="text-xs font-semibold text-slate-200">{completedHabits}/{habits.length}</span>
+        {/* SPRINT FEJLÉC */}
+        {activeTab === "sprint" && (
+          <div className="p-3 space-y-2">
+            <div className="flex justify-between items-center text-xs">
+              <span className="font-bold text-slate-100 flex items-center gap-1.5">
+                <TargetIcon size={14} className="text-emerald-400" />
+                <span>{sprint.name}</span>
+              </span>
+              <div className={`flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${syncStatus === "synced" ? "text-emerald-400" : "text-amber-400"}`}>
+                <CloudIcon size={11} />
+                <span>{syncStatus === "synced" ? "Élő" : "Mentés..."}</span>
               </div>
             </div>
           </div>
         )}
 
-        {/* 4. IRÁNYTŰ NÉZET FEJLÉCE */}
+        {/* HÉT FEJLÉC */}
+        {activeTab === "week" && (
+          <div className="p-3 flex justify-between items-center text-xs">
+            <button onClick={() => setSelectedWeekNum((p) => p - 1)} className="p-1 text-slate-400 hover:text-white">
+              <ChevronLeftIcon size={16} />
+            </button>
+            <span className="font-extrabold text-emerald-400 uppercase">{selectedWeekNum}. Hét</span>
+            <button onClick={() => setSelectedWeekNum((p) => p + 1)} className="p-1 text-slate-400 hover:text-white">
+              <ChevronRightIcon size={16} />
+            </button>
+          </div>
+        )}
+
+        {/* IRÁNYTŰ FEJLÉC */}
         {activeTab === "vision" && (
           <div className="p-3.5 bg-slate-900/90 flex items-start gap-3 border-b border-slate-800">
             <CompassIcon size={18} className="text-emerald-400 shrink-0 mt-0.5" />
@@ -739,272 +723,20 @@ export default function App() {
       </header>
 
       {/* FŐ TARTALOM */}
-      <main className="p-4 space-y-4 flex-1">
+      <main className="p-4 space-y-5 flex-1">
         
         {/* ======================================================== */}
-        {/* SPRINT NÉZET: SZÁMOK NÉLKÜLI CÍMMEL                      */}
-        {/* ======================================================== */}
-        {activeTab === "sprint" && currentArea && (
-          <div 
-            className="space-y-4 touch-pan-y"
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-          >
-            {/* 1. ÉLETTERÜLET BLOKK (KIZÁRÓLAG A NÉVVEL, SZÁMOK NÉLKÜL) */}
-            <section className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-3.5 space-y-3 shadow-lg shadow-black/20">
-              
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <button onClick={goToPrevArea} className="p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg shrink-0 transition">
-                  <ChevronLeftIcon size={18} />
-                </button>
-
-                {/* TISZTA NÉV (NINCS MÖGÖTTE SORSZÁM) */}
-                <div className="text-center flex-1 px-2 max-w-[240px]">
-                  <select
-                    value={activeAreaIndex}
-                    onChange={(e) => {
-                      setActiveAreaIndex(Number(e.target.value));
-                      setIsAddingSprintMilestone(false);
-                      setIsAddingSprintWeekly(false);
-                    }}
-                    className="bg-transparent text-xs sm:text-sm font-extrabold text-white text-center uppercase tracking-wide focus:outline-none cursor-pointer w-full truncate"
-                  >
-                    {visionAreas.map((area, idx) => (
-                      <option key={area.id} value={idx} className="bg-slate-900 text-slate-100">
-                        {area.title}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <button onClick={goToNextArea} className="p-2 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg shrink-0 transition">
-                  <ChevronRightIcon size={18} />
-                </button>
-              </div>
-
-              <div className="space-y-2 text-xs leading-relaxed">
-                <div className="bg-red-950/20 border border-red-900/30 rounded-xl p-2">
-                  <span className="text-[10px] uppercase font-bold text-red-400 block mb-0.5">POKOL KÉPE (AMIT EL AKARUNK KERÜLNI)</span>
-                  <p className="text-slate-300 italic whitespace-pre-line">{currentArea.hell || "Nincs kitöltve."}</p>
-                </div>
-
-                <div className="bg-emerald-950/20 border border-emerald-900/30 rounded-xl p-2">
-                  <span className="text-[10px] uppercase font-bold text-emerald-400 block mb-0.5">IDEÁLIS KÉP (AHOVA TARTUNK)</span>
-                  <p className="text-slate-200 whitespace-pre-line">{currentArea.ideal || "Nincs kitöltve."}</p>
-                </div>
-
-                <div className="bg-amber-950/20 border border-amber-900/30 rounded-xl p-2">
-                  <span className="text-[10px] uppercase font-bold text-amber-400 block mb-0.5">KÖVETKEZŐ NAGY CÉL</span>
-                  <p className="text-amber-200 font-semibold whitespace-pre-line">{currentArea.nextBigGoal || "Nincs kitűzve."}</p>
-                </div>
-              </div>
-            </section>
-
-            {/* 2. SPRINT-CÉLOK BLOKK */}
-            <section className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Sprint-célok</span>
-                  <span className="text-[10px] text-slate-500">
-                    ({milestones.filter((m) => m.domain === currentArea.title && m.done).length}/{milestones.filter((m) => m.domain === currentArea.title).length})
-                  </span>
-                </div>
-
-                <button
-                  onClick={() => setIsAddingSprintMilestone(!isAddingSprintMilestone)}
-                  className={`p-1 rounded-lg transition ${isAddingSprintMilestone ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-emerald-400 hover:bg-slate-800"}`}
-                  title="Új sprint-cél hozzáadása"
-                >
-                  <PlusIcon size={15} />
-                </button>
-              </div>
-
-              {isAddingSprintMilestone && (
-                <form onSubmit={handleAddSprintGoal} className="flex gap-1.5 pt-1">
-                  <input
-                    type="text"
-                    placeholder="Új sprint mérföldkő..."
-                    value={newSprintGoal}
-                    onChange={(e) => setNewSprintGoal(e.target.value)}
-                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                    autoFocus
-                  />
-                  <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition">
-                    Hozzáad
-                  </button>
-                </form>
-              )}
-
-              <div className="space-y-1.5">
-                {milestones.filter((m) => m.domain === currentArea.title).map((m) => (
-                  <div key={m.id} onClick={() => toggleMilestone(m.id)} className="p-2 bg-slate-950/60 border border-slate-800/80 rounded-xl flex items-center justify-between cursor-pointer hover:border-slate-700 transition">
-                    <div className="flex items-center gap-2.5 pr-2">
-                      {m.done ? <CheckCircleIcon size={16} className="text-emerald-400 shrink-0" /> : <CircleIcon size={16} className="text-slate-600 shrink-0" />}
-                      <span className={`text-xs ${m.done ? "line-through text-slate-500" : "text-slate-200"}`}>{m.title}</span>
-                    </div>
-                    <button onClick={(e) => deleteMilestone(m.id, e)} className="text-slate-600 hover:text-red-400 p-1 rounded transition shrink-0"><TrashIcon size={13} /></button>
-                  </div>
-                ))}
-                {milestones.filter((m) => m.domain === currentArea.title).length === 0 && !isAddingSprintMilestone && (
-                  <p className="text-[11px] text-slate-600 italic px-1">Még nincs sprint-cél ezen a területen.</p>
-                )}
-              </div>
-            </section>
-
-            {/* 3. HETI CÉLOK BLOKK */}
-            <section className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
-              <div className="flex justify-between items-center border-b border-slate-800/80 pb-2">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold uppercase tracking-wider text-amber-400">Heti célok</span>
-                  <div className="flex items-center bg-slate-950 border border-slate-800 rounded-lg px-1 text-[11px]">
-                    <button onClick={() => setSelectedWeekNum((p) => p - 1)} className="px-1 text-slate-400 hover:text-white">‹</button>
-                    <span className="px-1 font-bold text-slate-200">{selectedWeekNum}. hét</span>
-                    <button onClick={() => setSelectedWeekNum((p) => p + 1)} className="px-1 text-slate-400 hover:text-white">›</button>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => setIsAddingSprintWeekly(!isAddingSprintWeekly)}
-                  className={`p-1 rounded-lg transition ${isAddingSprintWeekly ? "bg-amber-500 text-slate-950" : "text-slate-400 hover:text-amber-400 hover:bg-slate-800"}`}
-                  title="Új heti cél hozzáadása"
-                >
-                  <PlusIcon size={15} />
-                </button>
-              </div>
-
-              {pendingPrevWeekGoals.length > 0 && (
-                <div className="bg-amber-950/20 border border-amber-900/40 rounded-xl p-2.5 flex items-center justify-between gap-2">
-                  <div className="text-[11px] text-amber-200 leading-tight">
-                    <strong>{pendingPrevWeekGoals.length} elmaradt cél</strong> az előző hétről.
-                  </div>
-                  <button
-                    onClick={handleRolloverPendingGoals}
-                    className="bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[10px] font-bold px-2 py-1 rounded-lg flex items-center gap-1 shrink-0 transition"
-                  >
-                    <span>Átmásolás</span>
-                    <ArrowRightIcon size={11} />
-                  </button>
-                </div>
-              )}
-
-              {isAddingSprintWeekly && (
-                <form onSubmit={handleAddWeeklyGoalFromSprint} className="flex gap-1.5 pt-1">
-                  <input
-                    type="text"
-                    placeholder={`Heti cél a ${selectedWeekNum}. hétre...`}
-                    value={newWeeklyGoal}
-                    onChange={(e) => setNewWeeklyGoal(e.target.value)}
-                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                    autoFocus
-                  />
-                  <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition">
-                    Hozzáad
-                  </button>
-                </form>
-              )}
-
-              <div className="space-y-1.5">
-                {currentWeekTasks.filter((t) => t.domain === currentArea.title).map((task) => (
-                  <div key={task.id} onClick={() => toggleTask(task.id)} className="p-2 bg-slate-950/60 border border-slate-800/80 rounded-xl flex items-center justify-between cursor-pointer hover:border-slate-700 transition">
-                    <div className="flex items-center gap-2.5 pr-2">
-                      {task.done ? <CheckCircleIcon size={16} className="text-amber-400 shrink-0" /> : <CircleIcon size={16} className="text-slate-600 shrink-0" />}
-                      <span className={`text-xs ${task.done ? "line-through text-slate-500" : "text-slate-200"}`}>{task.title}</span>
-                    </div>
-                    <button onClick={(e) => deleteTask(task.id, e)} className="text-slate-600 hover:text-red-400 p-1 rounded transition shrink-0"><TrashIcon size={13} /></button>
-                  </div>
-                ))}
-                {currentWeekTasks.filter((t) => t.domain === currentArea.title).length === 0 && !isAddingSprintWeekly && (
-                  <p className="text-[11px] text-slate-600 italic px-1">Nincs még heti cél rögzítve a {selectedWeekNum}. hétre.</p>
-                )}
-              </div>
-            </section>
-          </div>
-        )}
-
-        {/* ======================================================== */}
-        {/* HÉT TAB                                                  */}
-        {/* ======================================================== */}
-        {activeTab === "week" && (
-          <div className="space-y-4">
-            <div className="space-y-3">
-              {visionAreas.map((area) => {
-                const areaTasks = currentWeekTasks.filter((t) => t.domain === area.title);
-                const doneCount = areaTasks.filter((t) => t.done).length;
-                const isAddingHere = quickAddAreaTitle === area.title;
-
-                return (
-                  <div key={area.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2">
-                    <div className="flex justify-between items-center border-b border-slate-800/80 pb-2">
-                      <div className="flex items-center gap-2 flex-1">
-                        <span className={`w-2 h-2 rounded-full ${areaTasks.length > 0 ? "bg-emerald-400" : "bg-slate-600"}`} />
-                        <h3 className="text-xs font-bold text-slate-200">{area.title}</h3>
-                      </div>
-
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${
-                          areaTasks.length === 0 ? "bg-red-500/10 text-red-400 border border-red-500/20" : "bg-slate-800 text-slate-300"
-                        }`}>
-                          {areaTasks.length === 0 ? "Nincs cél!" : `${doneCount}/${areaTasks.length}`}
-                        </span>
-
-                        <button
-                          onClick={() => {
-                            if (isAddingHere) setQuickAddAreaTitle(null);
-                            else { setQuickAddAreaTitle(area.title); setQuickAddWeeklyText(""); }
-                          }}
-                          className={`p-1 rounded-lg transition ${isAddingHere ? "bg-blue-600 text-white" : "text-slate-400 hover:text-emerald-400 hover:bg-slate-800"}`}
-                          title="Heti cél hozzáadása"
-                        >
-                          <PlusIcon size={14} />
-                        </button>
-                      </div>
-                    </div>
-
-                    {isAddingHere && (
-                      <form onSubmit={(e) => handleQuickAddWeekly(area.title, e)} className="flex gap-1.5 pt-1">
-                        <input
-                          type="text"
-                          placeholder={`Új heti cél (${selectedWeekNum}. hét)...`}
-                          value={quickAddWeeklyText}
-                          onChange={(e) => setQuickAddWeeklyText(e.target.value)}
-                          className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
-                          autoFocus
-                        />
-                        <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1.5 rounded-lg font-semibold shrink-0">Hozzáad</button>
-                      </form>
-                    )}
-
-                    <div className="space-y-1.5 pt-0.5">
-                      {areaTasks.map((t) => (
-                        <div key={t.id} onClick={() => toggleTask(t.id)} className="flex items-center justify-between text-xs p-1.5 rounded hover:bg-slate-800/60 cursor-pointer">
-                          <div className="flex items-center gap-2">
-                            {t.done ? <CheckCircleIcon size={15} className="text-emerald-400 shrink-0" /> : <CircleIcon size={15} className="text-slate-600 shrink-0" />}
-                            <span className={t.done ? "line-through text-slate-500" : "text-slate-300"}>{t.title}</span>
-                          </div>
-                          <button onClick={(e) => deleteTask(t.id, e)} className="text-slate-600 hover:text-red-400 p-0.5"><TrashIcon size={12} /></button>
-                        </div>
-                      ))}
-                      {areaTasks.length === 0 && !isAddingHere && (
-                        <p className="text-[11px] text-slate-600 italic px-1">Nincs cél kitűzve erre a hétre.</p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ======================================================== */}
-        {/* MA TAB                                                   */}
+        {/* 1. MA TAB: NAPI FELADATOK & CSOPORTOSÍTOTT SZOKÁSOK      */}
         {/* ======================================================== */}
         {activeTab === "today" && (
-          <>
+          <div className="space-y-5">
+            
+            {/* FELADAT RÖGZÍTÉS */}
             <form onSubmit={handleAddTask} className="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2.5 shadow-sm">
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder={`Napi feladat (${formatShortDate(selectedDate)})...`}
+                  placeholder={`Új napi feladat (${formatShortDate(selectedDate)})...`}
                   value={newTaskTitle}
                   onChange={(e) => setNewTaskTitle(e.target.value)}
                   className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
@@ -1028,6 +760,7 @@ export default function App() {
               </div>
             </form>
 
+            {/* NAPI BIG 3 FELADATOK */}
             <section className="space-y-2">
               <h2 className="text-xs font-bold uppercase tracking-wider text-amber-400 flex items-center gap-1.5 px-1">
                 <TargetIcon size={14} /> Napi Big 3 prioritás
@@ -1048,26 +781,262 @@ export default function App() {
               </div>
             </section>
 
-            <section className="space-y-2 pt-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-cyan-400 px-1">Napi Szokások</span>
-              <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2.5">
-                {habits.map((habit) => {
-                  const done = !!todayHabitLog[habit.id];
-                  return (
-                    <div key={habit.id} onClick={() => toggleHabit(selectedDate, habit.id)} className="flex items-center gap-3 cursor-pointer select-none">
-                      {done ? <CheckCircleIcon size={17} className="text-cyan-400 shrink-0" /> : <CircleIcon size={17} className="text-slate-600 shrink-0" />}
-                      <span className={`text-xs ${done ? "text-slate-400 line-through" : "text-slate-200"}`}>{habit.title}</span>
+            {/* CSOPORTOSÍTOTT NAPI SZOKÁSOK */}
+            <section className="space-y-4 pt-2">
+              <div className="flex justify-between items-center px-1">
+                <span className="text-xs font-bold uppercase tracking-wider text-cyan-400">Napi Szokások</span>
+                <span className="text-[10px] text-slate-500">T-3 | T-2 | T-1 | <strong>MA</strong> | +1</span>
+              </div>
+
+              {habitGroups.map((groupName) => {
+                const groupHabits = habits.filter((h) => h.group === groupName);
+                const allGroupDone = groupHabits.length > 0 && groupHabits.every((h) => !!habitLogs[selectedDate]?.[h.id]?.done);
+                const usedFreezes = freezes[selectedDate]?.[groupName] || 0;
+
+                // AUTOMATIKUS ÁTRENDEZÉS: A kész feladatok legalulra kerülnek
+                const sortedHabits = [...groupHabits].sort((a, b) => {
+                  const aDone = !!habitLogs[selectedDate]?.[a.id]?.done;
+                  const bDone = !!habitLogs[selectedDate]?.[b.id]?.done;
+                  return aDone === bDone ? 0 : aDone ? 1 : -1;
+                });
+
+                return (
+                  <div key={groupName} className={`border rounded-2xl p-3.5 space-y-3 transition duration-300 ${allGroupDone ? "bg-slate-900/90 border-emerald-500/50 shadow-md shadow-emerald-500/10" : "bg-slate-900 border-slate-800"}`}>
+                    
+                    {/* CSOPORT FEJLÉC */}
+                    <div className="flex justify-between items-center border-b border-slate-800/80 pb-2">
+                      <div className="flex items-center gap-2">
+                        {allGroupDone ? (
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                        ) : (
+                          <span className="w-2 h-2 rounded-full bg-cyan-400 shrink-0" />
+                        )}
+                        <h3 className={`text-xs font-bold tracking-wide ${allGroupDone ? "text-emerald-300" : "text-slate-200"}`}>
+                          {groupName}
+                        </h3>
+                      </div>
+
+                      {/* SZÉRIABEFAGYASZTÓ GOMB (MAX 2) */}
+                      <button
+                        onClick={() => handleFreezeGroup(groupName)}
+                        className={`text-[10px] px-2 py-0.5 rounded-lg flex items-center gap-1 border transition ${
+                          usedFreezes > 0 ? "bg-blue-500/20 text-blue-300 border-blue-500/40" : "bg-slate-950 text-slate-500 border-slate-800 hover:text-slate-300"
+                        }`}
+                        title="Szériabefagyasztó erre a napra (max 2)"
+                      >
+                        <SnowflakeIcon size={11} />
+                        <span>Fagyasztó ({usedFreezes}/2)</span>
+                      </button>
                     </div>
-                  );
-                })}
+
+                    {/* SZOKÁSOK LISTÁJA */}
+                    <div className="space-y-2">
+                      {sortedHabits.map((habit) => {
+                        const isDoneToday = !!habitLogs[selectedDate]?.[habit.id]?.done;
+                        const { streak, rate21 } = getHabitStats(habit.id);
+
+                        return (
+                          <div
+                            key={habit.id}
+                            className={`p-2 rounded-xl flex items-center justify-between transition-all duration-300 ${
+                              isDoneToday ? "bg-slate-950/40 opacity-60" : "bg-slate-950/80 hover:bg-slate-950"
+                            }`}
+                          >
+                            <div className="flex-1 pr-2">
+                              <span className={`text-xs font-medium block ${isDoneToday ? "line-through text-slate-400" : "text-slate-200"}`}>
+                                {habit.title}
+                              </span>
+                              <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
+                                <span className="flex items-center gap-0.5 text-amber-400 font-semibold">
+                                  <FlameIcon size={11} /> {streak} nap
+                                </span>
+                                <span>21 nap: <strong>{rate21}</strong></span>
+                              </div>
+                            </div>
+
+                            {/* 5 NAPOS IDŐVONAL: T-3, T-2, T-1, MA (KIEMELVE), +1 */}
+                            <div className="flex items-center gap-1 shrink-0">
+                              {timelineDates.map((dStr, idx) => {
+                                const isCurrent = dStr === selectedDate;
+                                const isFuture = idx === 4;
+                                const doneOnDate = !!habitLogs[dStr]?.[habit.id]?.done;
+
+                                if (isFuture) {
+                                  return (
+                                    <div key={dStr} className="w-5 h-5 rounded-full border border-slate-800/40 bg-slate-900/20 opacity-30 flex items-center justify-center text-[8px] text-slate-600">
+                                      +1
+                                    </div>
+                                  );
+                                }
+
+                                return (
+                                  <button
+                                    key={dStr}
+                                    onClick={() => toggleHabitDate(habit.id, dStr, groupName)}
+                                    className={`rounded-full flex items-center justify-center transition ${
+                                      isCurrent 
+                                        ? "w-7 h-7 border-2 " + (doneOnDate ? "bg-cyan-500/20 border-cyan-400 text-cyan-400 font-bold" : "border-slate-700 bg-slate-900 text-slate-400")
+                                        : "w-5 h-5 text-[9px] " + (doneOnDate ? "bg-emerald-500/20 border border-emerald-500/50 text-emerald-400" : "border border-slate-800 bg-slate-950 text-slate-600")
+                                    }`}
+                                    title={dStr}
+                                  >
+                                    {doneOnDate ? "✓" : isCurrent ? "•" : ""}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </section>
+
+            {/* HETI RUTINOK ÉS MEETINGEK GYORS ÁTEMELÉSE */}
+            <section className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block">
+                Heti szokásos események & Meetingek
+              </span>
+              <div className="space-y-1.5">
+                {weeklyTemplates.map((item) => (
+                  <div key={item.id} className="p-2 bg-slate-950 border border-slate-800/80 rounded-xl flex items-center justify-between text-xs">
+                    <span className="text-slate-300 font-medium">{item.title}</span>
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={() => handleImportWeeklyTemplate(item, "BIG3")}
+                        className="bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] px-2 py-0.5 rounded font-semibold transition"
+                      >
+                        + Big3
+                      </button>
+                      <button
+                        onClick={() => handleImportWeeklyTemplate(item, "SCHEDULED")}
+                        className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-300 border border-blue-500/30 text-[10px] px-2 py-0.5 rounded font-semibold transition"
+                      >
+                        + Ütemezett
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </section>
-          </>
+
+          </div>
         )}
 
         {/* ======================================================== */}
-        {/* IRÁNYTŰ TAB                                              */}
+        {/* 2. SPRINT TAB                                            */}
         {/* ======================================================== */}
+        {activeTab === "sprint" && currentArea && (
+          <div className="space-y-4 touch-pan-y" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+            <section className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-3.5 space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                <button onClick={() => setActiveAreaIndex((p) => (p - 1 >= 0 ? p - 1 : visionAreas.length - 1))} className="p-2 text-slate-400 hover:text-white">
+                  <ChevronLeftIcon size={18} />
+                </button>
+                <select
+                  value={activeAreaIndex}
+                  onChange={(e) => setActiveAreaIndex(Number(e.target.value))}
+                  className="bg-transparent text-xs sm:text-sm font-extrabold text-white text-center uppercase tracking-wide focus:outline-none cursor-pointer max-w-[240px] truncate"
+                >
+                  {visionAreas.map((area, idx) => (
+                    <option key={area.id} value={idx} className="bg-slate-900 text-slate-100">{area.title}</option>
+                  ))}
+                </select>
+                <button onClick={() => setActiveAreaIndex((p) => (p + 1 < visionAreas.length ? p + 1 : 0))} className="p-2 text-slate-400 hover:text-white">
+                  <ChevronRightIcon size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-2 text-xs leading-relaxed">
+                <div className="bg-red-950/20 border border-red-900/30 rounded-xl p-2">
+                  <span className="text-[10px] uppercase font-bold text-red-400 block mb-0.5">POKOL KÉPE</span>
+                  <p className="text-slate-300 italic whitespace-pre-line">{currentArea.hell || "Nincs kitöltve."}</p>
+                </div>
+                <div className="bg-emerald-950/20 border border-emerald-900/30 rounded-xl p-2">
+                  <span className="text-[10px] uppercase font-bold text-emerald-400 block mb-0.5">IDEÁLIS KÉP</span>
+                  <p className="text-slate-200 whitespace-pre-line">{currentArea.ideal || "Nincs kitöltve."}</p>
+                </div>
+                <div className="bg-amber-950/20 border border-amber-900/30 rounded-xl p-2">
+                  <span className="text-[10px] uppercase font-bold text-amber-400 block mb-0.5">KÖVETKEZŐ NAGY CÉL</span>
+                  <p className="text-amber-200 font-semibold whitespace-pre-line">{currentArea.nextBigGoal || "Nincs kitűzve."}</p>
+                </div>
+              </div>
+            </section>
+
+            <section className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Sprint-célok</span>
+                <button onClick={() => setIsAddingSprintMilestone(!isAddingSprintMilestone)} className="p-1 text-slate-400 hover:text-emerald-400">
+                  <PlusIcon size={15} />
+                </button>
+              </div>
+
+              {isAddingSprintMilestone && (
+                <form onSubmit={handleAddSprintGoal} className="flex gap-1.5 pt-1">
+                  <input
+                    type="text"
+                    placeholder="Új sprint mérföldkő..."
+                    value={newSprintGoal}
+                    onChange={(e) => setNewSprintGoal(e.target.value)}
+                    className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+                    autoFocus
+                  />
+                  <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0">Hozzáad</button>
+                </form>
+              )}
+
+              <div className="space-y-1.5">
+                {(sprint.milestones || []).filter((m) => m.domain === currentArea.title).map((m) => (
+                  <div key={m.id} onClick={() => toggleMilestone(m.id)} className="p-2 bg-slate-950/60 border border-slate-800/80 rounded-xl flex items-center justify-between cursor-pointer">
+                    <div className="flex items-center gap-2.5 pr-2">
+                      {m.done ? <CheckCircleIcon size={16} className="text-emerald-400 shrink-0" /> : <CircleIcon size={16} className="text-slate-600 shrink-0" />}
+                      <span className={`text-xs ${m.done ? "line-through text-slate-500" : "text-slate-200"}`}>{m.title}</span>
+                    </div>
+                    <button onClick={(e) => deleteMilestone(m.id, e)} className="text-slate-600 hover:text-red-400 p-1"><TrashIcon size={13} /></button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* 3. HÉT TAB                                               */}
+        {/* ======================================================== */}
+        {activeTab === "week" && (
+          <div className="space-y-4">
+            <div className="space-y-3">
+              {visionAreas.map((area) => {
+                const areaTasks = (tasks || []).filter((t) => t.domain === area.title && (t.week || `2026-W${initialWeekNum}`) === currentWeekKey);
+                const doneCount = areaTasks.filter((t) => t.done).length;
+
+                return (
+                  <div key={area.id} className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2">
+                    <div className="flex justify-between items-center border-b border-slate-800/80 pb-2">
+                      <h3 className="text-xs font-bold text-slate-200">{area.title}</h3>
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-semibold ${areaTasks.length === 0 ? "bg-red-500/10 text-red-400 border border-red-500/20" : "bg-slate-800 text-slate-300"}`}>
+                        {areaTasks.length === 0 ? "Nincs cél!" : `${doneCount}/${areaTasks.length}`}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {areaTasks.map((t) => (
+                        <div key={t.id} onClick={() => toggleTask(t.id)} className="flex items-center justify-between text-xs p-1.5 rounded hover:bg-slate-800/60 cursor-pointer">
+                          <span className={t.done ? "line-through text-slate-500" : "text-slate-300"}>{t.title}</span>
+                          <button onClick={(e) => deleteTask(t.id, e)} className="text-slate-600 hover:text-red-400 p-0.5"><TrashIcon size={12} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================== */}
+        {/* 4. IRÁNYTŰ TAB                                           */}
         {activeTab === "vision" && (
           <div className="space-y-3">
             <div className="space-y-2.5">
@@ -1080,24 +1049,16 @@ export default function App() {
                     <div onClick={() => toggleAreaExpand(area.id)} className="p-3.5 flex items-start justify-between cursor-pointer select-none gap-2">
                       <div className="flex items-start gap-2.5 pr-2 flex-1">
                         <span className={`w-2 h-2 rounded-full shrink-0 mt-1.5 ${isExpanded ? "bg-emerald-400" : "bg-slate-600"}`} />
-                        <div className="space-y-1">
+                        <div>
                           <h3 className="text-sm font-bold text-slate-100 tracking-wide">{area.title}</h3>
                           {!isExpanded && area.nextBigGoal && (
-                            <p className="text-xs text-amber-400/90 font-medium leading-snug whitespace-pre-line">
-                              {area.nextBigGoal}
-                            </p>
+                            <p className="text-xs text-amber-400/90 font-medium leading-snug whitespace-pre-line mt-0.5">{area.nextBigGoal}</p>
                           )}
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-2 shrink-0 pt-0.5">
-                        {!isEditing && (
-                          <button onClick={(e) => startEditArea(area, e)} className="text-slate-400 hover:text-emerald-400 p-1.5 rounded hover:bg-slate-800 transition">
-                            <EditIcon size={15} />
-                          </button>
-                        )}
-                        <ChevronDownIcon size={17} className={`text-slate-500 transition-transform duration-300 ${isExpanded ? "transform rotate-180 text-emerald-400" : ""}`} />
-                      </div>
+                      <button onClick={(e) => startEditArea(area, e)} className="text-slate-400 hover:text-emerald-400 p-1.5 rounded">
+                        <EditIcon size={15} />
+                      </button>
                     </div>
 
                     {isExpanded && (
@@ -1105,42 +1066,27 @@ export default function App() {
                         {!isEditing ? (
                           <div className="space-y-3 text-xs leading-relaxed mt-2">
                             <div className="bg-red-950/20 border border-red-900/30 rounded-xl p-3">
-                              <span className="text-[10px] uppercase font-bold text-red-400 tracking-wider block mb-1">POKOL KÉPE (AMIT EL AKARUNK KERÜLNI)</span>
-                              <p className="text-slate-300 italic whitespace-pre-line">{area.hell || "Nincs még kitöltve."}</p>
+                              <span className="text-[10px] uppercase font-bold text-red-400 block mb-1">POKOL KÉPE</span>
+                              <p className="text-slate-300 italic whitespace-pre-line">{area.hell || "Nincs kitöltve."}</p>
                             </div>
                             <div className="bg-emerald-950/20 border border-emerald-900/30 rounded-xl p-3">
-                              <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider block mb-1">IDEÁLIS KÉP (AHOVA TARTUNK)</span>
-                              <p className="text-slate-200 whitespace-pre-line">{area.ideal || "Nincs még kitöltve."}</p>
+                              <span className="text-[10px] uppercase font-bold text-emerald-400 block mb-1">IDEÁLIS KÉP</span>
+                              <p className="text-slate-200 whitespace-pre-line">{area.ideal || "Nincs kitöltve."}</p>
                             </div>
                             <div className="bg-amber-950/20 border border-amber-900/30 rounded-xl p-3">
-                              <span className="text-[10px] uppercase font-bold text-amber-400 tracking-wider block mb-1">KÖVETKEZŐ NAGY CÉL</span>
-                              <p className="text-amber-200 font-medium whitespace-pre-line">{area.nextBigGoal || "Nincs még kitűzve."}</p>
+                              <span className="text-[10px] uppercase font-bold text-amber-400 block mb-1">KÖVETKEZŐ NAGY CÉL</span>
+                              <p className="text-amber-200 font-medium whitespace-pre-line">{area.nextBigGoal || "Nincs kitűzve."}</p>
                             </div>
                           </div>
                         ) : (
                           <div className="space-y-3 pt-2 text-xs">
-                            <div>
-                              <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Életterület elnevezése:</label>
-                              <input type="text" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-100 font-bold focus:outline-none focus:border-emerald-500" />
-                            </div>
-                            <div>
-                              <label className="text-[10px] uppercase font-bold text-red-400 block mb-1">POKOL KÉPE:</label>
-                              <textarea rows={3} value={editForm.hell} onChange={(e) => setEditForm({ ...editForm, hell: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-red-500" />
-                            </div>
-                            <div>
-                              <label className="text-[10px] uppercase font-bold text-emerald-400 block mb-1">IDEÁLIS KÉP:</label>
-                              <textarea rows={4} value={editForm.ideal} onChange={(e) => setEditForm({ ...editForm, ideal: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-emerald-500" />
-                            </div>
-                            <div>
-                              <label className="text-[10px] uppercase font-bold text-amber-400 block mb-1">KÖVETKEZŐ NAGY CÉL:</label>
-                              <textarea rows={2} value={editForm.nextBigGoal} onChange={(e) => setEditForm({ ...editForm, nextBigGoal: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-amber-200 focus:outline-none focus:border-amber-500" />
-                            </div>
-                            <div className="flex justify-between items-center pt-2">
-                              <button type="button" onClick={(e) => deleteArea(area.id, e)} className="text-red-400 hover:text-red-300 text-xs flex items-center gap-1 p-1"><TrashIcon size={14} /><span>Törlés</span></button>
-                              <div className="flex gap-2">
-                                <button type="button" onClick={() => setEditingAreaId(null)} className="text-slate-400 hover:text-slate-200 text-xs px-3 py-1 rounded">Mégse</button>
-                                <button type="button" onClick={(e) => saveEditArea(area.id, e)} className="bg-blue-600 hover:bg-blue-500 text-white text-xs px-3 py-1 rounded font-semibold transition">Mentés</button>
-                              </div>
+                            <input type="text" value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-100 font-bold" />
+                            <textarea rows={3} value={editForm.hell} onChange={(e) => setEditForm({ ...editForm, hell: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200" />
+                            <textarea rows={4} value={editForm.ideal} onChange={(e) => setEditForm({ ...editForm, ideal: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200" />
+                            <textarea rows={2} value={editForm.nextBigGoal} onChange={(e) => setEditForm({ ...editForm, nextBigGoal: e.target.value })} className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-amber-200" />
+                            <div className="flex justify-end gap-2 pt-2">
+                              <button type="button" onClick={() => setEditingAreaId(null)} className="text-slate-400 text-xs px-3 py-1">Mégse</button>
+                              <button type="button" onClick={(e) => saveEditArea(area.id, e)} className="bg-blue-600 text-white text-xs px-3 py-1 rounded font-semibold">Mentés</button>
                             </div>
                           </div>
                         )}
@@ -1150,34 +1096,13 @@ export default function App() {
                 );
               })}
             </div>
-
-            <div className="pt-2">
-              {!isAddingNewArea ? (
-                <button onClick={() => setIsAddingNewArea(true)} className="w-full py-3 border border-dashed border-slate-800 hover:border-emerald-500/50 rounded-2xl flex items-center justify-center gap-2 text-xs font-semibold text-slate-400 hover:text-emerald-400 transition bg-slate-900/40">
-                  <PlusIcon size={16} /><span>Új életterület hozzáadása</span>
-                </button>
-              ) : (
-                <form onSubmit={handleAddNewArea} className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-slate-200">Új életterület megnevezése</span>
-                    <button type="button" onClick={() => setIsAddingNewArea(false)} className="text-xs text-slate-500 hover:text-slate-300">Mégse</button>
-                  </div>
-                  <div className="flex gap-2">
-                    <input type="text" placeholder="Pl. Lelkiség, Tanulmányok..." value={newAreaTitle} onChange={(e) => setNewAreaTitle(e.target.value)} className="flex-1 bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500" autoFocus />
-                    <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-3.5 py-2 rounded-lg text-xs font-semibold shrink-0">Létrehozás</button>
-                  </div>
-                </form>
-              )}
-            </div>
           </div>
         )}
 
       </main>
 
       {/* ALSÓ MENÜSÁV */}
-      <nav 
-        className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-slate-900/95 backdrop-blur border-t border-slate-800 px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex justify-around items-center z-30"
-      >
+      <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-slate-900/95 backdrop-blur border-t border-slate-800 px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex justify-around items-center z-30">
         <button onClick={() => setActiveTab("today")} className={`flex flex-col items-center gap-1 transition ${activeTab === "today" ? "text-emerald-400" : "text-slate-500 hover:text-slate-300"}`}>
           <CalendarIcon size={18} />
           <span className="text-[10px] font-semibold">Ma</span>
