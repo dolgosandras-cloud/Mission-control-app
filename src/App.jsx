@@ -166,6 +166,7 @@ const CloseIcon = ({ size = 16, className = "" }) => (
   </svg>
 );
 
+// 31 DB FÓKUSZ-IDÉZET
 const DAILY_QUOTES = [
   { text: "A fegyelem egyenlő a szabadsággal.", author: "Jocko Willink" },
   { text: "A varázslat, amit keresel, abban a munkában van, amit épp kerülsz.", author: "Chris Williamson" },
@@ -272,9 +273,20 @@ const FALLBACK_EMPTY_STATE = {
   ],
   dismissedRollovers: {},
   dismissedWeeklyGoalRollovers: {},
+  // Értesítési beállítások mentése
+  notificationSettings: {
+    morningEnabled: true,
+    morningTime: "07:00",
+    middayEnabled: true,
+    middayTime: "14:00",
+    eveningEnabled: true,
+    eveningTime: "21:30",
+    stoicEnabled: true
+  },
   visionAreas: []
 };
 
+// Canvas konfetti effekt
 function triggerConfetti() {
   const canvas = document.createElement("canvas");
   canvas.className = "fixed inset-0 pointer-events-none z-50 w-full h-full";
@@ -382,7 +394,7 @@ export default function App() {
   const [globalWeeklyDay, setGlobalWeeklyDay] = useState(1);
   const [daySpecificTitle, setDaySpecificTitle] = useState("");
 
-  // Iránytű (Fentről lefelé fókusz) lap állapota
+  // Iránytű lap állapota
   const [activeAreaIndex, setActiveAreaIndex] = useState(0);
   const touchStartX = useRef(null);
   const [isAddingSprintMilestone, setIsAddingSprintMilestone] = useState(false);
@@ -411,7 +423,7 @@ export default function App() {
   const [isAddingNewArea, setIsAddingNewArea] = useState(false);
   const [newAreaTitle, setNewAreaTitle] = useState("");
 
-  // SERVICE WORKER REGISZTRÁCIÓ ÉS ÉRTESÍTÉSI JOGOSULTSÁG VIZSGÁLAT
+  // SERVICE WORKER REGISZTRÁCIÓ
   useEffect(() => {
     if ("Notification" in window) {
       setNotificationPermission(Notification.permission);
@@ -425,7 +437,7 @@ export default function App() {
 
   const requestNotificationAccess = async () => {
     if (!("Notification" in window)) {
-      alert("Ez a böngésző vagy eszköz nem támogatja a push értesítéseket.");
+      alert("Ez a böngésző nem támogatja a webes értesítéseket.");
       return;
     }
     const perm = await Notification.requestPermission();
@@ -470,6 +482,9 @@ export default function App() {
             }
             if (!serverData.weeklyGoals && serverData.tasks) {
               serverData.weeklyGoals = serverData.tasks.filter((t) => t.week && !t.date);
+            }
+            if (!serverData.notificationSettings) {
+              serverData.notificationSettings = FALLBACK_EMPTY_STATE.notificationSettings;
             }
             isInternalUpdate.current = true;
             isLoadedFromServer.current = true;
@@ -519,7 +534,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [state]);
 
-  const { sprint = FALLBACK_EMPTY_STATE.sprint, weeklyGoals = [], tasks = [], habits = [], habitLogs = {}, habitFreezes = {}, weeklyHabits = FALLBACK_EMPTY_STATE.weeklyHabits, dismissedRollovers = {}, dismissedWeeklyGoalRollovers = {}, visionAreas = [] } = state;
+  const { sprint = FALLBACK_EMPTY_STATE.sprint, weeklyGoals = [], tasks = [], habits = [], habitLogs = {}, habitFreezes = {}, weeklyHabits = FALLBACK_EMPTY_STATE.weeklyHabits, dismissedRollovers = {}, dismissedWeeklyGoalRollovers = {}, notificationSettings = FALLBACK_EMPTY_STATE.notificationSettings, visionAreas = [] } = state;
   const currentArea = visionAreas[activeAreaIndex] || visionAreas[0];
 
   const habitGroups = Array.from(new Set(habits.map((h) => h.group || "ÁLTALÁNOS")));
@@ -529,7 +544,7 @@ export default function App() {
 
   const timelineDates = [-3, -2, -1, 0, 1].map((offset) => offsetDateString(selectedDate, offset));
 
-  // Tegnapi elmaradt feladatok (Rollover figyelmeztetés)
+  // Tegnapi elmaradt feladatok
   const yesterdayStr = offsetDateString(selectedDate, -1);
   const isRolloverDismissedToday = !!dismissedRollovers[selectedDate];
   const pendingYesterdayTasks = !isRolloverDismissedToday ? tasks.filter(
@@ -554,7 +569,7 @@ export default function App() {
   }).length;
   const dayHabitPct = habits.length > 0 ? Math.round((completedDayHabitsCount / habits.length) * 100) : 0;
 
-  // Heti számítások a célokból
+  // Heti számítások
   const currentWeekGoals = weeklyGoals.filter((g) => g.week === currentWeekKey);
   const completedWeekGoals = currentWeekGoals.filter((g) => g.done).length;
   const weekHitRate = currentWeekGoals.length > 0 ? Math.round((completedWeekGoals / currentWeekGoals.length) * 100) : 0;
@@ -577,7 +592,6 @@ export default function App() {
   const totalMilestones = milestones.length;
   const sprintTaskPct = totalMilestones > 0 ? Math.round((completedMilestones / totalMilestones) * 100) : 0;
 
-  // Előző heti elmaradt heti célok
   const pendingPrevWeekGoals = weeklyGoals.filter(
     (g) => g.week === prevWeekKey && !g.done && !dismissedWeeklyGoalRollovers[g.id]
   );
@@ -585,7 +599,7 @@ export default function App() {
   const dayOfYear = Math.floor((actualNowTime - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000);
   const todayQuote = DAILY_QUOTES[Math.abs(dayOfYear) % DAILY_QUOTES.length];
 
-  // DOMAIN MOMENTUM SCORE SZÁMÍTÁSA
+  // DOMAIN MOMENTUM SCORE
   const calculateDomainMomentum = (domainTitle) => {
     const domainHabits = habits.filter((h) => h.domain === domainTitle);
     let habitScore = 100;
@@ -641,7 +655,7 @@ export default function App() {
     };
   };
 
-  // 14 NAPOS TREND ÉS 7 NAPOS MOZGÓÁTLAG (SMA)
+  // 14 NAPOS TREND
   const chartDays = Array.from({ length: 14 }).map((_, i) => offsetDateString(selectedDate, -13 + i));
 
   const getTaskPctForDate = (dateStr) => {
@@ -686,7 +700,7 @@ export default function App() {
       .join(" ");
   };
 
-  // Napi Rollover – VALÓDI MÁSOLÁS
+  // Napi Rollover
   const handleRolloverYesterdayTasks = () => {
     const copiedNewTasks = pendingYesterdayTasks.map((t) => ({
       ...t,
@@ -1239,6 +1253,17 @@ export default function App() {
     if (diff === 0) return "Akt.";
     if (diff > 0) return `Akt.+${diff}`;
     return `Akt.${diff}`;
+  };
+
+  // Értesítési beállítások mentése
+  const handleUpdateNotificationSettings = (key, value) => {
+    setState((prev) => ({
+      ...prev,
+      notificationSettings: {
+        ...(prev.notificationSettings || FALLBACK_EMPTY_STATE.notificationSettings),
+        [key]: value
+      }
+    }));
   };
 
   return (
@@ -2034,6 +2059,7 @@ export default function App() {
                                 </span>
                                 
                                 <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-1">
+                                  {/* TŰZ SZÁMLÁLÓ */}
                                   <span className="flex items-center gap-0.5 text-amber-400 font-semibold">
                                     <FlameIcon size={11} /> {streak} nap
                                   </span>
@@ -2157,7 +2183,7 @@ export default function App() {
                 </form>
               )}
 
-              {/* Ma esedékes heti szokások */}
+              {/* Ma esedékes */}
               <div className="space-y-1.5">
                 <span className="text-[10px] font-bold uppercase text-slate-400 block">Ma esedékes:</span>
                 {todayDueWeeklyHabits.map((wh) => (
@@ -2283,7 +2309,7 @@ export default function App() {
         {activeTab === "week" && (
           <div className="space-y-4">
             
-            {/* ELŐZŐ HETI ELMARADT CÉLOK EGYESÉVEL DÖNTVE */}
+            {/* ELŐZŐ HETI ELMARADT CÉLOK */}
             {pendingPrevWeekGoals.length > 0 && (
               <section className="bg-amber-950/20 border border-amber-900/40 rounded-2xl p-3 space-y-2 shadow-sm">
                 <span className="text-xs font-bold uppercase tracking-wider text-amber-400 block">
@@ -2400,6 +2426,8 @@ export default function App() {
                                   <button onClick={() => { setEditingGoalId(goal.id); setEditingGoalText(goal.title); }} className="text-slate-500 hover:text-cyan-300 p-1">
                                     <EditIcon size={12} />
                                   </button>
+
+                                  {/* 1. NAPOCSKA (MA) */}
                                   <button
                                     onClick={() => handleCopyGoalToTask(goal, 0, "BIG3")}
                                     className="p-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition"
@@ -2407,6 +2435,8 @@ export default function App() {
                                   >
                                     <SunIcon size={13} />
                                   </button>
+
+                                  {/* 2. NAPOCSKA +1 (HOLNAP) */}
                                   <button
                                     onClick={() => handleCopyGoalToTask(goal, 1, "BIG3")}
                                     className="px-1.5 py-1 rounded-lg bg-blue-500/15 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 text-[10px] font-bold flex items-center gap-0.5 transition"
@@ -2415,6 +2445,8 @@ export default function App() {
                                     <SunIcon size={12} />
                                     <span>+1</span>
                                   </button>
+
+                                  {/* 3. NAPTÁR IKON */}
                                   <button
                                     onClick={() => setSchedulingGoalId(schedulingGoalId === goal.id ? null : goal.id)}
                                     className={`p-1.5 rounded-lg border transition ${
@@ -2426,6 +2458,7 @@ export default function App() {
                                   >
                                     <CalendarIcon size={13} />
                                   </button>
+
                                   <button onClick={(e) => deleteWeeklyGoal(goal.id, e)} className="text-slate-600 hover:text-red-400 p-0.5">
                                     <TrashIcon size={12} />
                                   </button>
@@ -2484,7 +2517,7 @@ export default function App() {
               </div>
             </section>
 
-            {/* 2. SPRINT-CÉLOK (MÁSOLÁS HETI CÉLKÉNT GOMBBAL) */}
+            {/* 2. SPRINT-CÉLOK */}
             <section className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Sprint-célok</span>
@@ -2530,7 +2563,7 @@ export default function App() {
               </div>
             </section>
 
-            {/* 3. HETI CÉLOK (RÖVIDÍTETT HÉT JELZÉSSEL & ÁTMÁSOLÁSI ÁLLAPOTTAL) */}
+            {/* 3. HETI CÉLOK */}
             <section className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
               <div className="flex justify-between items-center border-b border-slate-800/80 pb-2">
                 <div className="flex items-center gap-1.5">
@@ -2661,7 +2694,7 @@ export default function App() {
         )}
 
         {/* ======================================================== */}
-        {/* 4. SPRINT TAB (CSAK A SPRINT CÉLOK ÁTTEKINTÉSE)          */}
+        {/* 4. SPRINT TAB                                            */}
         {/* ======================================================== */}
         {activeTab === "sprint" && (
           <div className="space-y-4">
@@ -2728,7 +2761,7 @@ export default function App() {
         )}
 
         {/* ======================================================== */}
-        {/* 5. CÉLOK TAB (TÁVLATI CÉLOK ÖSSZEFOGLALÁSA)              */}
+        {/* 5. CÉLOK TAB                                             */}
         {/* ======================================================== */}
         {activeTab === "goals" && (
           <div className="space-y-3">
@@ -2827,40 +2860,120 @@ export default function App() {
               </button>
             </div>
 
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Az értesítések sztoikus viselkedéspszichológiai elvekre épülnek: reggel fókuszba állítanak, napközben és este pedig határozottan megállítják a halogatást.
-            </p>
-
-            <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1 text-xs">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">Állapot:</span>
-              <div className="flex items-center justify-between">
+            {/* Jogosultsági állapot */}
+            <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Eszköz állapota:</span>
                 <span className="font-semibold text-slate-200">
-                  {notificationPermission === "granted" ? "✓ Engedélyezve a telefonon" : "Nincs még engedélyezve"}
+                  {notificationPermission === "granted" ? "✓ Engedélyezve az Androidon" : "Nincs engedélyezve"}
                 </span>
-                {notificationPermission !== "granted" && (
-                  <button
-                    onClick={requestNotificationAccess}
-                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-bold px-2.5 py-1 rounded-lg transition"
-                  >
-                    Engedélyezés
-                  </button>
-                )}
+              </div>
+              {notificationPermission !== "granted" && (
+                <button
+                  onClick={requestNotificationAccess}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-bold px-2.5 py-1 rounded-lg"
+                >
+                  Engedélyezés
+                </button>
+              )}
+            </div>
+
+            {/* ÉRTESÍTÉSI IDŐABLAKOK KALIBRÁLÁSA */}
+            <div className="space-y-2 pt-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Napi Időzített Értesítések:</span>
+              
+              {/* 1. Reggeli indító */}
+              <div className="p-2 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                <div>
+                  <span className="font-bold text-slate-200 block">🌅 Reggeli Fókuszindító</span>
+                  <span className="text-[10px] text-slate-500">Big 3 kitűzése és Win the Morning</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="time"
+                    value={notificationSettings.morningTime || "07:00"}
+                    onChange={(e) => handleUpdateNotificationSettings("morningTime", e.target.value)}
+                    className="bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-slate-100"
+                  />
+                  <input
+                    type="checkbox"
+                    checked={notificationSettings.morningEnabled ?? true}
+                    onChange={(e) => handleUpdateNotificationSettings("morningEnabled", e.target.checked)}
+                    className="w-4 h-4 rounded text-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* 2. Napközbeni provokatív */}
+              <div className="p-2 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                <div>
+                  <span className="font-bold text-slate-200 block">⚡ Napközbeni Fegyelem</span>
+                  <span className="text-[10px] text-slate-500">Nyitott Big 3 prioritások ellenőrzése</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="time"
+                    value={notificationSettings.middayTime || "14:00"}
+                    onChange={(e) => handleUpdateNotificationSettings("middayTime", e.target.value)}
+                    className="bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-slate-100"
+                  />
+                  <input
+                    type="checkbox"
+                    checked={notificationSettings.middayEnabled ?? true}
+                    onChange={(e) => handleUpdateNotificationSettings("middayEnabled", e.target.checked)}
+                    className="w-4 h-4 rounded text-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* 3. Esti zárás & Szériamentés */}
+              <div className="p-2 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                <div>
+                  <span className="font-bold text-slate-200 block">🌙 Esti Szériamentő</span>
+                  <span className="text-[10px] text-slate-500">Szokások zárása & Fagyasztó emlékeztető</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="time"
+                    value={notificationSettings.eveningTime || "21:30"}
+                    onChange={(e) => handleUpdateNotificationSettings("eveningTime", e.target.value)}
+                    className="bg-slate-900 border border-slate-700 rounded px-1.5 py-0.5 text-[11px] text-slate-100"
+                  />
+                  <input
+                    type="checkbox"
+                    checked={notificationSettings.eveningEnabled ?? true}
+                    onChange={(e) => handleUpdateNotificationSettings("eveningEnabled", e.target.checked)}
+                    className="w-4 h-4 rounded text-emerald-500"
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="space-y-1.5 pt-1">
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">Teszt értesítések:</span>
+            {/* Teszt gombok dinamikus tartalommal */}
+            <div className="space-y-1.5 pt-1 border-t border-slate-800">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Azonnali tesztelés:</span>
               <button
-                onClick={() => triggerDirectPush("Win the morning", "A nap első győzelme a tiéd. Mi az a 3 prioritás mára?")}
-                className="w-full text-left p-2 bg-slate-950 hover:bg-slate-800 rounded-xl border border-slate-800 text-xs text-slate-200 transition"
+                onClick={() => triggerDirectPush(
+                  "Win the morning",
+                  big3Tasks.filter((t) => !t.done).length > 0
+                    ? `Még ${big3Tasks.filter((t) => !t.done).length} Big 3 prioritás vár rád mára!`
+                    : "A nap első győzelme a tiéd. Kitűzted már a mai fókuszt?"
+                )}
+                className="w-full text-left p-2 bg-slate-950 hover:bg-slate-800 rounded-xl border border-slate-800 text-xs text-slate-200 transition flex items-center justify-between"
               >
-                🌅 Reggeli fókuszindító tesztelése
+                <span>🌅 Reggeli fókusz teszt</span>
+                <span className="text-[10px] text-cyan-400 font-bold">Küldés</span>
               </button>
+
               <button
-                onClick={() => triggerDirectPush("Figyelem: Nyitott feladatok", "A fegyelem ott kezdődik, ahol a kedv véget ér. Még van 2 befejezetlen feladatod mára!")}
-                className="w-full text-left p-2 bg-slate-950 hover:bg-slate-800 rounded-xl border border-slate-800 text-xs text-slate-200 transition"
+                onClick={() => triggerDirectPush(
+                  "Fegyelem-ellenőrzés",
+                  `A fegyelem egyenlő a szabadsággal. Még ${habits.length - completedDayHabitsCount} szokás és ${scoredTasks.length - completedScored} feladat nyitva van!`
+                )}
+                className="w-full text-left p-2 bg-slate-950 hover:bg-slate-800 rounded-xl border border-slate-800 text-xs text-slate-200 transition flex items-center justify-between"
               >
-                ⚡ Provokatív emlékeztető tesztelése
+                <span>⚡ Provokatív riasztás teszt</span>
+                <span className="text-[10px] text-amber-400 font-bold">Küldés</span>
               </button>
             </div>
 
