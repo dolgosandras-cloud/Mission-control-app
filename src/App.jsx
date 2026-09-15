@@ -66,6 +66,13 @@ const RunningManIcon = ({ size = 18, className = "" }) => (
   </svg>
 );
 
+const BellIcon = ({ size = 15, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+  </svg>
+);
+
 const TrashIcon = ({ size = 14, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <polyline points="3 6 5 6 21 6" />
@@ -257,18 +264,17 @@ const FALLBACK_EMPTY_STATE = {
   tasks: [],
   habits: [],
   habitLogs: {},
-  habitFreezes: {}, // [habitId]: { count: 2, lastReset: "YYYY-MM-DD" }
+  habitFreezes: {},
   weeklyHabits: [
     { id: "wh1", title: "Viráglocsolás", dayOfWeek: 3 },
     { id: "wh2", title: "Heti tervezés & visszatekintés", dayOfWeek: 6 },
     { id: "wh3", title: "Nagybevásárlás", dayOfWeek: 5 }
   ],
   dismissedRollovers: {},
-  dismissedWeeklyGoalRollovers: {}, // [goalId]: true
+  dismissedWeeklyGoalRollovers: {},
   visionAreas: []
 };
 
-// Canvas konfetti effekt
 function triggerConfetti() {
   const canvas = document.createElement("canvas");
   canvas.className = "fixed inset-0 pointer-events-none z-50 w-full h-full";
@@ -309,7 +315,6 @@ function triggerConfetti() {
 }
 
 export default function App() {
-  // Laponkénti állapotok: "today" | "week" | "vision" | "sprint" | "goals"
   const [activeTab, setActiveTab] = useState("today");
   const todayActualStr = getTodayDateString();
   const [selectedDate, setSelectedDate] = useState(todayActualStr);
@@ -329,12 +334,16 @@ export default function App() {
   const isLoadedFromServer = useRef(false);
   const isSavingRef = useRef(false);
 
-  // Vizuális toast üzenet
+  // Toast üzenet
   const [toastMessage, setToastMessage] = useState(null);
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
   };
+
+  // PUSH ÉRTESÍTÉSI MODAL ÉS BEÁLLÍTÁSOK
+  const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState("default");
 
   // Napi feladat beviteli sorok
   const [addingCategory, setAddingCategory] = useState(null);
@@ -401,6 +410,48 @@ export default function App() {
   const [editForm, setEditForm] = useState({ title: "", hell: "", ideal: "", nextBigGoal: "" });
   const [isAddingNewArea, setIsAddingNewArea] = useState(false);
   const [newAreaTitle, setNewAreaTitle] = useState("");
+
+  // SERVICE WORKER REGISZTRÁCIÓ ÉS ÉRTESÍTÉSI JOGOSULTSÁG VIZSGÁLAT
+  useEffect(() => {
+    if ("Notification" in window) {
+      setNotificationPermission(Notification.permission);
+    }
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch((err) => {
+        console.warn("Service Worker regisztrációs hiba:", err);
+      });
+    }
+  }, []);
+
+  const requestNotificationAccess = async () => {
+    if (!("Notification" in window)) {
+      alert("Ez a böngésző vagy eszköz nem támogatja a push értesítéseket.");
+      return;
+    }
+    const perm = await Notification.requestPermission();
+    setNotificationPermission(perm);
+    if (perm === "granted") {
+      showToast("Értesítések engedélyezve!");
+      triggerDirectPush("Mission Control aktiválva", "A fegyelem egyenlő a szabadsággal. A napi fókusz készen áll!");
+    }
+  };
+
+  const triggerDirectPush = (title, body) => {
+    if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.ready.then((reg) => {
+        reg.showNotification(title, {
+          body,
+          icon: "/icon-192.png",
+          badge: "/icon-192.png",
+          vibrate: [200, 100, 200]
+        });
+      });
+    } else if ("Notification" in window && Notification.permission === "granted") {
+      new Notification(title, { body });
+    } else {
+      showToast(body);
+    }
+  };
 
   // 1. SZINKRONIZÁCIÓ SUPABASE-SZEL
   useEffect(() => {
@@ -526,7 +577,7 @@ export default function App() {
   const totalMilestones = milestones.length;
   const sprintTaskPct = totalMilestones > 0 ? Math.round((completedMilestones / totalMilestones) * 100) : 0;
 
-  // Előző heti elmaradt heti célok (egyesével felajánlva)
+  // Előző heti elmaradt heti célok
   const pendingPrevWeekGoals = weeklyGoals.filter(
     (g) => g.week === prevWeekKey && !g.done && !dismissedWeeklyGoalRollovers[g.id]
   );
@@ -534,11 +585,8 @@ export default function App() {
   const dayOfYear = Math.floor((actualNowTime - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000);
   const todayQuote = DAILY_QUOTES[Math.abs(dayOfYear) % DAILY_QUOTES.length];
 
-  // =========================================================================
-  // DOMAIN MOMENTUM SCORE & AKTIVITÁS SZÁMÍTÁSA AZ IRÁNYTŰ NÉZETHEZ
-  // =========================================================================
+  // DOMAIN MOMENTUM SCORE SZÁMÍTÁSA
   const calculateDomainMomentum = (domainTitle) => {
-    // 1. Szokás Teljesülés (elmúlt 7 nap)
     const domainHabits = habits.filter((h) => h.domain === domainTitle);
     let habitScore = 100;
     if (domainHabits.length > 0) {
@@ -554,14 +602,12 @@ export default function App() {
       habitScore = Math.round((doneCount / (domainHabits.length * 7)) * 100);
     }
 
-    // 2. Heti Cél Teljesülés
     const domainWeekGoals = weeklyGoals.filter((g) => g.domain === domainTitle && g.week === currentWeekKey);
     let goalScore = 0;
     if (domainWeekGoals.length > 0) {
       goalScore = Math.round((domainWeekGoals.filter((g) => g.done).length / domainWeekGoals.length) * 100);
     }
 
-    // Súlyozás
     let finalScore = 0;
     if (domainHabits.length === 0 && domainWeekGoals.length > 0) {
       finalScore = goalScore;
@@ -571,7 +617,6 @@ export default function App() {
       finalScore = Math.round(0.6 * habitScore + 0.4 * goalScore);
     }
 
-    // Inaktivitás vizsgálata (mikor volt utoljára pipa szokásnál vagy feladatnál)
     let lastActiveDaysAgo = 999;
     for (let i = 0; i < 30; i++) {
       const d = offsetDateString(selectedDate, -i);
@@ -741,9 +786,7 @@ export default function App() {
     if (editingTaskModal?.id === id) setEditingTaskModal(null);
   };
 
-  // =========================================================================
-  // HETI CÉLOK MŰVELETEI
-  // =========================================================================
+  // Heti célok műveletei
   const handleAddWeeklyGoal = (title, domain) => {
     if (!title.trim()) return;
     const newGoal = {
@@ -788,14 +831,13 @@ export default function App() {
     setEditingGoalId(null);
   };
 
-  // HETI CÉL EGYESÉVEL TÖRTÉNŐ ROLLOVER DÖNTÉSEK
   const handleAcceptSingleGoalRollover = (goal) => {
     const newGoal = {
       id: `goal-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       week: currentWeekKey,
       domain: goal.domain,
       title: goal.title,
-      plannedDate: null, // Dátum törlése az új hétre
+      plannedDate: null,
       done: false
     };
     setState((prev) => ({
@@ -853,13 +895,11 @@ export default function App() {
     showToast(`Beütemezve ide: ${formatShortDate(dateStr)}!`);
   };
 
-  // Sprint mérföldkő másolása a kiválasztott hét céljai közé
   const handleCopyMilestoneToWeekly = (milestone) => {
     handleAddWeeklyGoal(milestone.title, milestone.domain);
     showToast(`Mérföldkő átmásolva a(z) ${selectedWeekNum}. hét céljai közé!`);
   };
 
-  // Szokás státusz váltása
   const toggleHabitStatus = (habitId, dateStr, groupName) => {
     setState((prev) => {
       const prevLogs = prev.habitLogs || {};
@@ -934,7 +974,6 @@ export default function App() {
     });
   };
 
-  // SZÉRIA ÉS FAGYASZTÓ VISSZATÖLTŐDÉS (7 NAPOS CIKLUS ÉS VISSZASZÁMLÁLÓ)
   const getHabitStats = (habitId) => {
     let pastStreak = 0;
     for (let i = 1; i < 60; i++) {
@@ -951,7 +990,6 @@ export default function App() {
     const isTodayDone = todaySt === "done" || todaySt === "micro" || todaySt === "freeze";
     const currentStreak = pastStreak + (isTodayDone ? 1 : 0);
 
-    // Fagyasztó visszatöltődés ellenőrzése
     const freezeObj = habitFreezes[habitId] || { count: 2, lastReset: getTodayDateString() };
     let currentCount = freezeObj.count ?? 2;
     let daysUntilReset = 0;
@@ -962,7 +1000,6 @@ export default function App() {
       const elapsedDays = Math.floor((nowTime - lastResetTime) / 86400000);
       daysUntilReset = Math.max(0, 7 - (elapsedDays % 7));
 
-      // Ha eltelt legalább 7 nap, feltöltünk egyet
       if (elapsedDays >= 7) {
         currentCount = Math.min(2, currentCount + Math.floor(elapsedDays / 7));
       }
@@ -971,7 +1008,6 @@ export default function App() {
     return { streak: currentStreak, freezeCount: currentCount, daysUntilReset };
   };
 
-  // SZOKÁS TÖRLÉSE (VÉGLEGES CASCADE TÖRLÉS)
   const handleDeleteHabit = (habitId) => {
     if (!window.confirm("Biztosan törölni szeretnéd ezt a szokást?")) return;
     setState((prev) => {
@@ -1094,7 +1130,6 @@ export default function App() {
     showToast(`„${wh.title}” bemásolva mára a(z) ${type === "BIG3" ? "Big 3" : "Ütemezett"} feladatok közé!`);
   };
 
-  // Swipe és Iránytű lap műveletek
   const handleTouchStart = (e) => { touchStartX.current = e.touches[0].clientX; };
   const handleTouchEnd = (e) => {
     if (!touchStartX.current || visionAreas.length === 0) return;
@@ -1144,6 +1179,17 @@ export default function App() {
     setIsAddingSprintWeekly(false);
   };
 
+  const handleRolloverPendingGoals = () => {
+    if (pendingPrevWeekGoals.length === 0) return;
+    const copiedGoals = pendingPrevWeekGoals.map((g) => ({
+      ...g,
+      id: `goal-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      week: currentWeekKey,
+      done: false
+    }));
+    setState((prev) => ({ ...prev, weeklyGoals: [...(prev.weeklyGoals || []), ...copiedGoals] }));
+  };
+
   const toggleMilestone = (id) => {
     setState((prev) => ({ ...prev, sprint: { ...prev.sprint, milestones: (prev.sprint.milestones || []).map((m) => (m.id === id ? { ...m, done: !m.done } : m)) } }));
   };
@@ -1153,7 +1199,7 @@ export default function App() {
     setState((prev) => ({ ...prev, sprint: { ...prev.sprint, milestones: (prev.sprint.milestones || []).filter((m) => m.id !== id) } }));
   };
 
-  // Célok lap (Távlati célok) kezelői
+  // Célok lap kezelői
   const toggleAreaExpand = (id) => { if (!editingAreaId) setExpandedAreaId((p) => (p === id ? null : id)); };
   const startEditArea = (area, e) => {
     e.stopPropagation();
@@ -1186,10 +1232,8 @@ export default function App() {
     setEditForm({ title: newAreaObj.title, hell: "", ideal: "", nextBigGoal: "" });
   };
 
-  // Aktuális életterület momentum adatai
   const currentMomentum = currentArea ? calculateDomainMomentum(currentArea.title) : null;
 
-  // Hét formátum számító (pl. "Akt." vagy "Akt.+2")
   const getWeekOffsetLabel = (weekNum) => {
     const diff = weekNum - initialWeekNum;
     if (diff === 0) return "Akt.";
@@ -1200,7 +1244,7 @@ export default function App() {
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 max-w-md mx-auto font-sans pb-28 select-none">
       
-      {/* VIZUÁLIS TOAST VISSZAJELZŐ */}
+      {/* VIZUÁLIS TOAST */}
       {toastMessage && (
         <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-emerald-500 text-slate-950 px-4 py-1.5 rounded-full text-xs font-extrabold shadow-lg shadow-emerald-500/20 flex items-center gap-1.5 animate-bounce">
           <span>✓</span>
@@ -1209,7 +1253,7 @@ export default function App() {
       )}
 
       {/* ========================================================================= */}
-      {/* DINAMIKUS RÖGZÍTETT FEJLÉC (STICKY HEADER)                                */}
+      {/* RÖGZÍTETT FEJLÉC                                                          */}
       {/* ========================================================================= */}
       <header className="sticky top-0 z-30 bg-slate-950/95 backdrop-blur border-b border-slate-800 shadow-md">
         
@@ -1230,9 +1274,23 @@ export default function App() {
                   </button>
                 )}
               </div>
-              <button onClick={() => setSelectedDate(offsetDateString(selectedDate, 1))} className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800">
-                <ChevronRightIcon size={16} />
-              </button>
+              <div className="flex items-center gap-1">
+                {/* ÉRTESÍTÉSEK HARANG GOMB */}
+                <button
+                  onClick={() => setIsNotificationModalOpen(true)}
+                  className={`p-1.5 rounded-lg border transition ${
+                    notificationPermission === "granted"
+                      ? "text-emerald-400 border-emerald-500/30 bg-emerald-950/20"
+                      : "text-amber-400 border-amber-500/30 bg-amber-950/20 animate-pulse"
+                  }`}
+                  title="Push értesítések beállítása"
+                >
+                  <BellIcon size={14} />
+                </button>
+                <button onClick={() => setSelectedDate(offsetDateString(selectedDate, 1))} className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800">
+                  <ChevronRightIcon size={16} />
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center justify-around pt-1">
@@ -1306,10 +1364,9 @@ export default function App() {
           </div>
         )}
 
-        {/* IRÁNYTŰ (VISION) NÉZET RÖGZÍTETT FEJLÉCE: VÉGIG LÁTHATÓ ÉLETTERÜLET + DOMAIN MOMENTUM SCORE */}
+        {/* IRÁNYTŰ (VISION) NÉZET RÖGZÍTETT FEJLÉCE */}
         {activeTab === "vision" && currentArea && currentMomentum && (
           <div className="p-3 space-y-2 bg-slate-900 border-b border-slate-800 shadow-md">
-            {/* Területválasztó lapozósáv és dinamikus Momentum Badge */}
             <div className="flex items-center justify-between gap-2">
               <button onClick={() => setActiveAreaIndex((p) => (p - 1 >= 0 ? p - 1 : visionAreas.length - 1))} className="p-1.5 text-slate-400 hover:text-white rounded-lg">
                 <ChevronLeftIcon size={18} />
@@ -1327,7 +1384,6 @@ export default function App() {
                 </select>
               </div>
 
-              {/* Területi Lendület Index Badge */}
               <div className={`px-2 py-0.5 rounded-full border text-[11px] font-black shrink-0 ${
                 currentMomentum.score >= 80 ? "text-emerald-400 bg-emerald-950/40 border-emerald-500/30" :
                 currentMomentum.score >= 50 ? "text-amber-400 bg-amber-950/40 border-amber-500/30" :
@@ -1341,7 +1397,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Részletező Momentum Progress Bar & Neglect Alert */}
             <div className="space-y-1 pt-1">
               <div className="flex justify-between items-center text-[10px] text-slate-400">
                 <span>Szokások: <strong className="text-cyan-300">{currentMomentum.habitScore}%</strong></span>
@@ -2102,7 +2157,7 @@ export default function App() {
                 </form>
               )}
 
-              {/* Ma esedékes */}
+              {/* Ma esedékes heti szokások */}
               <div className="space-y-1.5">
                 <span className="text-[10px] font-bold uppercase text-slate-400 block">Ma esedékes:</span>
                 {todayDueWeeklyHabits.map((wh) => (
@@ -2223,7 +2278,7 @@ export default function App() {
         )}
 
         {/* ======================================================== */}
-        {/* 2. HÉT TAB: EGYESÉVEL ROLLOVER DÖNTÉS + 3 IKON            */}
+        {/* 2. HÉT TAB                                               */}
         {/* ======================================================== */}
         {activeTab === "week" && (
           <div className="space-y-4">
@@ -2310,7 +2365,7 @@ export default function App() {
                       </form>
                     )}
 
-                    {/* HETI CÉLOK: 3 TISZTA IKONNAL + SZÖVEG SZERKESZTÉS LEHETŐSÉGE */}
+                    {/* HETI CÉLOK: 3 TISZTA IKONNAL */}
                     <div className="space-y-1.5 pt-0.5">
                       {areaGoals.map((goal) => {
                         const plannedDayLabel = goal.plannedDate ? `${getDayShortName(goal.plannedDate)} ${formatShortDate(goal.plannedDate)}` : null;
@@ -2342,12 +2397,9 @@ export default function App() {
                                 </div>
 
                                 <div className="flex items-center gap-1 shrink-0">
-                                  {/* Szerkesztés ceruza */}
                                   <button onClick={() => { setEditingGoalId(goal.id); setEditingGoalText(goal.title); }} className="text-slate-500 hover:text-cyan-300 p-1">
                                     <EditIcon size={12} />
                                   </button>
-
-                                  {/* 1. NAPOCSKA (MA) */}
                                   <button
                                     onClick={() => handleCopyGoalToTask(goal, 0, "BIG3")}
                                     className="p-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition"
@@ -2355,8 +2407,6 @@ export default function App() {
                                   >
                                     <SunIcon size={13} />
                                   </button>
-
-                                  {/* 2. NAPOCSKA +1 (HOLNAP) */}
                                   <button
                                     onClick={() => handleCopyGoalToTask(goal, 1, "BIG3")}
                                     className="px-1.5 py-1 rounded-lg bg-blue-500/15 hover:bg-blue-500/30 text-blue-300 border border-blue-500/40 text-[10px] font-bold flex items-center gap-0.5 transition"
@@ -2365,8 +2415,6 @@ export default function App() {
                                     <SunIcon size={12} />
                                     <span>+1</span>
                                   </button>
-
-                                  {/* 3. NAPTÁR IKON */}
                                   <button
                                     onClick={() => setSchedulingGoalId(schedulingGoalId === goal.id ? null : goal.id)}
                                     className={`p-1.5 rounded-lg border transition ${
@@ -2378,7 +2426,6 @@ export default function App() {
                                   >
                                     <CalendarIcon size={13} />
                                   </button>
-
                                   <button onClick={(e) => deleteWeeklyGoal(goal.id, e)} className="text-slate-600 hover:text-red-400 p-0.5">
                                     <TrashIcon size={12} />
                                   </button>
@@ -2414,12 +2461,12 @@ export default function App() {
         )}
 
         {/* ======================================================== */}
-        {/* 3. IRÁNYTŰ TAB (FENTRŐL LEFELÉ FÓKUSZ + 1 HETES ÜTEMEZÉS) */}
+        {/* 3. IRÁNYTŰ TAB (FENTRŐL LEFELÉ FÓKUSZ)                   */}
         {/* ======================================================== */}
         {activeTab === "vision" && currentArea && (
           <div className="space-y-4 touch-pan-y" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
             
-            {/* 1. ÉLETTERÜLET NAGY KÉP (POKOL / IDEÁLIS / CÉL) */}
+            {/* 1. ÉLETTERÜLET NAGY KÉP */}
             <section className="bg-slate-900 border border-emerald-500/30 rounded-2xl p-3.5 space-y-2.5 shadow-lg shadow-black/20">
               <div className="space-y-2 text-xs leading-relaxed">
                 <div className="bg-red-950/20 border border-red-900/30 rounded-xl p-2">
@@ -2469,7 +2516,6 @@ export default function App() {
                     </div>
 
                     <div className="flex items-center gap-1 shrink-0">
-                      {/* ÁTMÁSOLÁS A KIVÁLASZTOTT HÉT HETI CÉLJAI KÖZÉ */}
                       <button
                         onClick={() => handleCopyMilestoneToWeekly(m)}
                         className="bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold px-2 py-0.5 rounded transition"
@@ -2548,7 +2594,7 @@ export default function App() {
               </div>
             </section>
 
-            {/* 4. ELŐTTÜNK ÁLLÓ 1 HÉT ÜTEMEZETT FELADATAI (EHHEZ AZ ÉLETTERÜLETHEZ) */}
+            {/* 4. ELŐTTÜNK ÁLLÓ 1 HÉT ÜTEMEZETT FELADATAI */}
             <section className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
               <span className="text-xs font-bold uppercase tracking-wider text-blue-400 block">
                 Következő 7 nap ütemezett feladatai ezen a területen
@@ -2767,6 +2813,67 @@ export default function App() {
 
       </main>
 
+      {/* PUSH ÉRTESÍTÉS BEÁLLÍTÓ MODAL */}
+      {isNotificationModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-sm p-4 space-y-3.5 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <div className="flex items-center gap-2">
+                <BellIcon size={16} className="text-amber-400" />
+                <span className="text-xs font-bold text-slate-100">Push Értesítések Kalibrálása</span>
+              </div>
+              <button onClick={() => setIsNotificationModalOpen(false)} className="text-slate-400 hover:text-white">
+                <CloseIcon size={16} />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed">
+              Az értesítések sztoikus viselkedéspszichológiai elvekre épülnek: reggel fókuszba állítanak, napközben és este pedig határozottan megállítják a halogatást.
+            </p>
+
+            <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1 text-xs">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Állapot:</span>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-200">
+                  {notificationPermission === "granted" ? "✓ Engedélyezve a telefonon" : "Nincs még engedélyezve"}
+                </span>
+                {notificationPermission !== "granted" && (
+                  <button
+                    onClick={requestNotificationAccess}
+                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-bold px-2.5 py-1 rounded-lg transition"
+                  >
+                    Engedélyezés
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-1.5 pt-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Teszt értesítések:</span>
+              <button
+                onClick={() => triggerDirectPush("Win the morning", "A nap első győzelme a tiéd. Mi az a 3 prioritás mára?")}
+                className="w-full text-left p-2 bg-slate-950 hover:bg-slate-800 rounded-xl border border-slate-800 text-xs text-slate-200 transition"
+              >
+                🌅 Reggeli fókuszindító tesztelése
+              </button>
+              <button
+                onClick={() => triggerDirectPush("Figyelem: Nyitott feladatok", "A fegyelem ott kezdődik, ahol a kedv véget ér. Még van 2 befejezetlen feladatod mára!")}
+                className="w-full text-left p-2 bg-slate-950 hover:bg-slate-800 rounded-xl border border-slate-800 text-xs text-slate-200 transition"
+              >
+                ⚡ Provokatív emlékeztető tesztelése
+              </button>
+            </div>
+
+            <button
+              onClick={() => setIsNotificationModalOpen(false)}
+              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold transition"
+            >
+              Bezárás
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* NAPI FELADAT SZERKESZTŐ MODAL */}
       {editingTaskModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -2922,7 +3029,7 @@ export default function App() {
       )}
 
       {/* ========================================================================= */}
-      {/* ALSÓ MENÜSÁV (5 LAP: MA, HÉT, IRÁNYTŰ, SPRINT, CÉLOK)                     */}
+      {/* ALSÓ MENÜSÁV                                                              */}
       {/* ========================================================================= */}
       <nav 
         className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-slate-900/95 backdrop-blur border-t border-slate-800 px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex justify-between items-center z-30"
