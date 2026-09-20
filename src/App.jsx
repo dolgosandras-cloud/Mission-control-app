@@ -66,7 +66,7 @@ const RunningManIcon = ({ size = 18, className = "" }) => (
   </svg>
 );
 
-const BellIcon = ({ size = 15, className = "" }) => (
+const BellIcon = ({ size = 16, className = "" }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
     <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
     <path d="M13.73 21a2 2 0 0 1-3.46 0" />
@@ -284,6 +284,7 @@ const FALLBACK_EMPTY_STATE = {
   visionAreas: []
 };
 
+// Canvas konfetti effekt
 function triggerConfetti() {
   const canvas = document.createElement("canvas");
   canvas.className = "fixed inset-0 pointer-events-none z-50 w-full h-full";
@@ -343,16 +344,17 @@ export default function App() {
   const isLoadedFromServer = useRef(false);
   const isSavingRef = useRef(false);
 
-  // Értesítés állapotok
+  // Toast értesítés
   const [toastMessage, setToastMessage] = useState(null);
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
   };
 
+  // PUSH ÉRTESÍTÉSI MODAL ÉS BEÁLLÍTÁSOK
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState("default");
-  const sentAlertsTracker = useRef({}); // [date_timeSlot]: true
+  const sentAlertsTracker = useRef({});
 
   // Napi feladat beviteli sorok
   const [addingCategory, setAddingCategory] = useState(null);
@@ -384,7 +386,7 @@ export default function App() {
   const [editingGoalId, setEditingGoalId] = useState(null);
   const [editingGoalText, setEditingGoalText] = useState("");
 
-  // Heti szokások modul állapotok
+  // HETI SZOKÁSOK MODUL ÁLLAPOTOK
   const [zoomDayIndex, setZoomDayIndex] = useState(null);
   const [isAddingWeeklyGlobal, setIsAddingWeeklyGlobal] = useState(false);
   const [globalWeeklyTitle, setGlobalWeeklyTitle] = useState("");
@@ -427,25 +429,28 @@ export default function App() {
     }
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch((err) => {
-        console.warn("Service Worker regisztrációs hiba:", err);
+        console.warn("Service Worker hiba:", err);
       });
     }
   }, []);
 
   const requestNotificationAccess = async () => {
     if (!("Notification" in window)) {
-      alert("Ez az eszköz vagy böngésző nem támogatja a push értesítéseket.");
+      alert("Ez a böngésző nem támogatja a webes értesítéseket.");
       return;
     }
-    const perm = await Notification.requestPermission();
-    setNotificationPermission(perm);
-    if (perm === "granted") {
-      showToast("Értesítések sikeresen engedélyezve!");
-      triggerDirectPush("Mission Control aktiválva", "A fegyelem egyenlő a szabadsággal. A napi fókusz készen áll!");
+    try {
+      const perm = await Notification.requestPermission();
+      setNotificationPermission(perm);
+      if (perm === "granted") {
+        showToast("Értesítések engedélyezve!");
+        triggerDirectPush("Mission Control", "A fegyelem egyenlő a szabadsággal. Értesítések aktiválva!");
+      }
+    } catch (e) {
+      console.warn("Engedélykérés hiba:", e);
     }
   };
 
-  // KÖZVETLEN PUSH ÉRTESÍTÉS KIKÜLDÉSE A SERVICE WORKEREN KERESZTÜL
   const triggerDirectPush = (title, body) => {
     if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
       navigator.serviceWorker.controller.postMessage({
@@ -463,7 +468,7 @@ export default function App() {
     }
   };
 
-  // HÁTTÉR-IDŐZÍTŐ: PERCENKÉNT VIZSGÁLJA A BEÁLLÍTOTT IDŐPONTOKAT ÉS A HIÁNYZÓ SZOKÁSOKAT
+  // HÁTTÉR-IDŐZÍTŐ
   useEffect(() => {
     const checkScheduledNotifications = () => {
       if (notificationPermission !== "granted") return;
@@ -475,7 +480,6 @@ export default function App() {
 
       const settings = state.notificationSettings || FALLBACK_EMPTY_STATE.notificationSettings;
 
-      // 1. Reggeli indító
       if (settings.morningEnabled && settings.morningTime === currentTimeStr) {
         const alertKey = `${todayStr}_morning`;
         if (!sentAlertsTracker.current[alertKey]) {
@@ -490,7 +494,6 @@ export default function App() {
         }
       }
 
-      // 2. Napközbeni fegyelem-ellenőrzés
       if (settings.middayEnabled && settings.middayTime === currentTimeStr) {
         const alertKey = `${todayStr}_midday`;
         if (!sentAlertsTracker.current[alertKey]) {
@@ -505,7 +508,6 @@ export default function App() {
         }
       }
 
-      // 3. Esti szériamentő & szokások zárása
       if (settings.eveningEnabled && settings.eveningTime === currentTimeStr) {
         const alertKey = `${todayStr}_evening`;
         if (!sentAlertsTracker.current[alertKey]) {
@@ -527,11 +529,11 @@ export default function App() {
     };
 
     checkScheduledNotifications();
-    const timer = setInterval(checkScheduledNotifications, 45000); // 45 mp-enkénti ellenőrzés
+    const timer = setInterval(checkScheduledNotifications, 45000);
     return () => clearInterval(timer);
   }, [state, notificationPermission]);
 
-  // SZINKRONIZÁCIÓ SUPABASE-SZEL
+  // 1. SZINKRONIZÁCIÓ SUPABASE-SZEL
   useEffect(() => {
     async function fetchServerState() {
       if (isSavingRef.current) return;
@@ -569,7 +571,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // HELYI MENTÉS A SUPABASE-BE
+  // 2. HELYI MENTÉS A SUPABASE-BE
   useEffect(() => {
     if (isInternalUpdate.current) {
       isInternalUpdate.current = false;
@@ -610,14 +612,12 @@ export default function App() {
 
   const timelineDates = [-3, -2, -1, 0, 1].map((offset) => offsetDateString(selectedDate, offset));
 
-  // Tegnapi elmaradt feladatok
   const yesterdayStr = offsetDateString(selectedDate, -1);
   const isRolloverDismissedToday = !!dismissedRollovers[selectedDate];
   const pendingYesterdayTasks = !isRolloverDismissedToday ? tasks.filter(
     (t) => t.date === yesterdayStr && (t.type === "BIG3" || t.type === "SCHEDULED") && !t.done
   ) : [];
 
-  // Napi feladatok
   const currentDayTasks = tasks.filter((t) => t.date === selectedDate);
   const big3Tasks = [...currentDayTasks.filter((t) => t.type === "BIG3")].sort((a, b) => Number(a.done) - Number(b.done));
   const scheduledTasks = [...currentDayTasks.filter((t) => t.type === "SCHEDULED")].sort((a, b) => Number(a.done) - Number(b.done));
@@ -627,7 +627,6 @@ export default function App() {
   const completedScored = scoredTasks.filter((t) => t.done).length;
   const dayTaskPct = scoredTasks.length > 0 ? Math.round((completedScored / scoredTasks.length) * 100) : 0;
 
-  // Napi szokások aránya
   const dayHabitLog = habitLogs[selectedDate] || {};
   const completedDayHabitsCount = habits.filter((h) => {
     const st = dayHabitLog[h.id]?.status;
@@ -635,14 +634,12 @@ export default function App() {
   }).length;
   const dayHabitPct = habits.length > 0 ? Math.round((completedDayHabitsCount / habits.length) * 100) : 0;
 
-  // Heti számítások
   const currentWeekGoals = weeklyGoals.filter((g) => g.week === currentWeekKey);
   const completedWeekGoals = currentWeekGoals.filter((g) => g.done).length;
   const weekHitRate = currentWeekGoals.length > 0 ? Math.round((completedWeekGoals / currentWeekGoals.length) * 100) : 0;
   const plannedAreasCount = visionAreas.filter((a) => currentWeekGoals.some((g) => g.domain === a.title)).length;
   const weekTimePct = Math.min(100, Math.max(0, Math.round(((new Date().getDay() || 7) / 7) * 100)));
 
-  // Sprint számítások
   const sprintStart = new Date(sprint.startDate || getTodayDateString()).getTime();
   const sprintEnd = new Date(sprint.endDate || getTodayDateString()).getTime();
   const actualNowTime = new Date().getTime();
@@ -665,7 +662,6 @@ export default function App() {
   const dayOfYear = Math.floor((actualNowTime - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000);
   const todayQuote = DAILY_QUOTES[Math.abs(dayOfYear) % DAILY_QUOTES.length];
 
-  // DOMAIN MOMENTUM SCORE
   const calculateDomainMomentum = (domainTitle) => {
     const domainHabits = habits.filter((h) => h.domain === domainTitle);
     let habitScore = 100;
@@ -721,7 +717,6 @@ export default function App() {
     };
   };
 
-  // 14 NAPOS TREND
   const chartDays = Array.from({ length: 14 }).map((_, i) => offsetDateString(selectedDate, -13 + i));
 
   const getTaskPctForDate = (dateStr) => {
@@ -766,7 +761,6 @@ export default function App() {
       .join(" ");
   };
 
-  // Napi Rollover
   const handleRolloverYesterdayTasks = () => {
     const copiedNewTasks = pendingYesterdayTasks.map((t) => ({
       ...t,
@@ -789,7 +783,6 @@ export default function App() {
     }));
   };
 
-  // Napi feladat hozzáadása
   const handleAddCategoryTask = (category, e) => {
     e.preventDefault();
     if (!newQuickTaskTitle.trim()) return;
@@ -866,7 +859,6 @@ export default function App() {
     if (editingTaskModal?.id === id) setEditingTaskModal(null);
   };
 
-  // Heti célok műveletei
   const handleAddWeeklyGoal = (title, domain) => {
     if (!title.trim()) return;
     const newGoal = {
@@ -1162,7 +1154,6 @@ export default function App() {
     setEditingGroupOldName(null);
   };
 
-  // HETI SZOKÁSOK MŰVELETEI
   const selectedDayOfWeekNum = new Date(selectedDate).getDay();
   const todayDueWeeklyHabits = weeklyHabits.filter((wh) => wh.dayOfWeek === selectedDayOfWeekNum);
 
@@ -1279,7 +1270,6 @@ export default function App() {
     setState((prev) => ({ ...prev, sprint: { ...prev.sprint, milestones: (prev.sprint.milestones || []).filter((m) => m.id !== id) } }));
   };
 
-  // Célok lap kezelői
   const toggleAreaExpand = (id) => { if (!editingAreaId) setExpandedAreaId((p) => (p === id ? null : id)); };
   const startEditArea = (area, e) => {
     e.stopPropagation();
@@ -1334,9 +1324,9 @@ export default function App() {
   return (
     <div className="flex flex-col min-h-screen bg-slate-950 text-slate-100 max-w-md mx-auto font-sans pb-28 select-none">
       
-      {/* VIZUÁLIS TOAST */}
+      {/* TOAST VISSZAJELZŐ */}
       {toastMessage && (
-        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 bg-emerald-500 text-slate-950 px-4 py-1.5 rounded-full text-xs font-extrabold shadow-lg shadow-emerald-500/20 flex items-center gap-1.5 animate-bounce">
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-[1000] bg-emerald-500 text-slate-950 px-4 py-1.5 rounded-full text-xs font-extrabold shadow-lg shadow-emerald-500/20 flex items-center gap-1.5 animate-bounce">
           <span>✓</span>
           <span>{toastMessage}</span>
         </div>
@@ -1351,33 +1341,35 @@ export default function App() {
         {activeTab === "today" && (
           <div className="p-3 space-y-2">
             <div className="flex justify-between items-center text-xs">
-              <button onClick={() => setSelectedDate(offsetDateString(selectedDate, -1))} className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800">
-                <ChevronLeftIcon size={16} />
+              <button onClick={() => setSelectedDate(offsetDateString(selectedDate, -1))} className="p-1.5 text-slate-400 hover:text-white rounded hover:bg-slate-800">
+                <ChevronLeftIcon size={18} />
               </button>
-              <div className="text-center">
-                <span className="font-extrabold text-slate-100 tracking-wide text-sm">
+              <div className="text-center flex-1 px-1">
+                <span className="font-extrabold text-slate-100 tracking-wide text-sm block">
                   {formatNavDateLabel(selectedDate, todayActualStr)}
                 </span>
                 {selectedDate !== todayActualStr && (
-                  <button onClick={() => setSelectedDate(todayActualStr)} className="text-[10px] text-emerald-400 block mx-auto underline mt-0.5">
+                  <button onClick={() => setSelectedDate(todayActualStr)} className="text-[10px] text-emerald-400 underline mt-0.5">
                     Vissza a mai napra
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* JAVÍTOTT ÉRTESÍTÉSI HARANG GOMB (JOBBAN KATTINTHATÓ TOUCH TARGET) */}
                 <button
-                  onClick={() => setIsNotificationModalOpen(true)}
-                  className={`p-1.5 rounded-lg border transition ${
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setIsNotificationModalOpen(true); }}
+                  className={`p-2 rounded-xl border transition shadow-sm ${
                     notificationPermission === "granted"
-                      ? "text-emerald-400 border-emerald-500/30 bg-emerald-950/20"
-                      : "text-amber-400 border-amber-500/30 bg-amber-950/20 animate-pulse"
+                      ? "text-emerald-400 border-emerald-500/40 bg-emerald-950/30 active:scale-95"
+                      : "text-amber-400 border-amber-500/40 bg-amber-950/30 animate-pulse active:scale-95"
                   }`}
                   title="Push értesítések beállítása"
                 >
-                  <BellIcon size={14} />
+                  <BellIcon size={16} />
                 </button>
-                <button onClick={() => setSelectedDate(offsetDateString(selectedDate, 1))} className="p-1 text-slate-400 hover:text-white rounded hover:bg-slate-800">
-                  <ChevronRightIcon size={16} />
+                <button onClick={() => setSelectedDate(offsetDateString(selectedDate, 1))} className="p-1.5 text-slate-400 hover:text-white rounded hover:bg-slate-800">
+                  <ChevronRightIcon size={18} />
                 </button>
               </div>
             </div>
@@ -1453,7 +1445,7 @@ export default function App() {
           </div>
         )}
 
-        {/* IRÁNYTŰ (VISION) NÉZET RÖGZÍTETT FEJLÉCE */}
+        {/* IRÁNYTŰ (VISION) RÖGZÍTETT FEJLÉC */}
         {activeTab === "vision" && currentArea && currentMomentum && (
           <div className="p-3 space-y-2 bg-slate-900 border-b border-slate-800 shadow-md">
             <div className="flex items-center justify-between gap-2">
@@ -2064,7 +2056,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* Szokások listája */}
+              {/* Szokások listája a felületen */}
               <div className="space-y-4">
                 {habitGroups.map((groupName) => {
                   const groupHabits = habits.filter((h) => h.group === groupName);
@@ -2548,7 +2540,7 @@ export default function App() {
         )}
 
         {/* ======================================================== */}
-        {/* 3. IRÁNYTŰ TAB                                           */}
+        {/* 3. IRÁNYTŰ TAB (FENTRŐL LEFELÉ FÓKUSZ)                   */}
         {/* ======================================================== */}
         {activeTab === "vision" && currentArea && (
           <div className="space-y-4 touch-pan-y" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
@@ -2571,7 +2563,7 @@ export default function App() {
               </div>
             </section>
 
-            {/* 2. SPRINT-CÉLOK */}
+            {/* 2. SPRINT-CÉLOK (MÁSOLÁS HETI CÉLKÉNT GOMBBAL) */}
             <section className="bg-slate-900 border border-slate-800 rounded-2xl p-3.5 space-y-2.5">
               <div className="flex justify-between items-center">
                 <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Sprint-célok</span>
@@ -2900,6 +2892,163 @@ export default function App() {
 
       </main>
 
+      {/* ========================================================================= */}
+      {/* PUSH ÉRTESÍTÉS BEÁLLÍTÓ MODAL (LEGELSŐ RÉTEGRE HELYEZVE: z-[999])         */}
+      {/* ========================================================================= */}
+      {isNotificationModalOpen && (
+        <div 
+          className="fixed inset-0 z-[999] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn"
+          onClick={() => setIsNotificationModalOpen(false)}
+        >
+          <div 
+            className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-sm p-4 space-y-3.5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center border-b border-slate-800 pb-2">
+              <div className="flex items-center gap-2">
+                <BellIcon size={18} className="text-amber-400" />
+                <span className="text-xs font-bold text-slate-100">Push Értesítések Kalibrálása</span>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setIsNotificationModalOpen(false)} 
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+              >
+                <CloseIcon size={18} />
+              </button>
+            </div>
+
+            {/* Állapot */}
+            <div className="bg-slate-950 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-slate-400 block">Eszköz állapota:</span>
+                <span className="font-semibold text-slate-200">
+                  {notificationPermission === "granted" ? "✓ Engedélyezve a készüléken" : "Nincs engedélyezve"}
+                </span>
+              </div>
+              {notificationPermission !== "granted" && (
+                <button
+                  type="button"
+                  onClick={requestNotificationAccess}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-bold px-2.5 py-1 rounded-lg"
+                >
+                  Engedélyezés
+                </button>
+              )}
+            </div>
+
+            {/* Időzítések beállítása */}
+            <div className="space-y-2 pt-1">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Időzített Értesítési Időpontok:</span>
+              
+              {/* 1. Reggeli indító */}
+              <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                <div>
+                  <span className="font-bold text-slate-200 block">🌅 Reggeli Fókuszindító</span>
+                  <span className="text-[10px] text-slate-500">Big 3 kitűzése és Win the Morning</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="time"
+                    value={notificationSettings.morningTime || "07:00"}
+                    onChange={(e) => handleUpdateNotificationSettings("morningTime", e.target.value)}
+                    className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-100 font-bold focus:outline-none focus:border-amber-500"
+                  />
+                  <input
+                    type="checkbox"
+                    checked={notificationSettings.morningEnabled ?? true}
+                    onChange={(e) => handleUpdateNotificationSettings("morningEnabled", e.target.checked)}
+                    className="w-4 h-4 rounded text-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* 2. Napközbeni fegyelem */}
+              <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                <div>
+                  <span className="font-bold text-slate-200 block">⚡ Napközbeni Fegyelem</span>
+                  <span className="text-[10px] text-slate-500">Nyitott Big 3 prioritások ellenőrzése</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="time"
+                    value={notificationSettings.middayTime || "14:00"}
+                    onChange={(e) => handleUpdateNotificationSettings("middayTime", e.target.value)}
+                    className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-100 font-bold focus:outline-none focus:border-amber-500"
+                  />
+                  <input
+                    type="checkbox"
+                    checked={notificationSettings.middayEnabled ?? true}
+                    onChange={(e) => handleUpdateNotificationSettings("middayEnabled", e.target.checked)}
+                    className="w-4 h-4 rounded text-emerald-500"
+                  />
+                </div>
+              </div>
+
+              {/* 3. Esti szériamentő */}
+              <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                <div>
+                  <span className="font-bold text-slate-200 block">🌙 Esti Szériamentő</span>
+                  <span className="text-[10px] text-slate-500">Szokások zárása & Fagyasztó emlékeztető</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="time"
+                    value={notificationSettings.eveningTime || "21:30"}
+                    onChange={(e) => handleUpdateNotificationSettings("eveningTime", e.target.value)}
+                    className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-100 font-bold focus:outline-none focus:border-amber-500"
+                  />
+                  <input
+                    type="checkbox"
+                    checked={notificationSettings.eveningEnabled ?? true}
+                    onChange={(e) => handleUpdateNotificationSettings("eveningEnabled", e.target.checked)}
+                    className="w-4 h-4 rounded text-emerald-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Tesztelési gombok */}
+            <div className="space-y-1.5 pt-1 border-t border-slate-800">
+              <span className="text-[10px] uppercase font-bold text-slate-400 block">Azonnali tesztelés:</span>
+              <button
+                type="button"
+                onClick={() => triggerDirectPush(
+                  "Win the morning",
+                  big3Tasks.filter((t) => !t.done).length > 0
+                    ? `Még ${big3Tasks.filter((t) => !t.done).length} Big 3 prioritás vár rád mára!`
+                    : "A nap első győzelme a tiéd. Kitűzted már a mai fókuszt?"
+                )}
+                className="w-full text-left p-2 bg-slate-950 hover:bg-slate-800 rounded-xl border border-slate-800 text-xs text-slate-200 transition flex items-center justify-between"
+              >
+                <span>🌅 Reggeli fókusz tesztelése</span>
+                <span className="text-[10px] text-cyan-400 font-bold">Küldés</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => triggerDirectPush(
+                  "Fegyelem-ellenőrzés",
+                  `A fegyelem egyenlő a szabadsággal. Még ${habits.length - completedDayHabitsCount} szokás és ${scoredTasks.length - completedScored} feladat nyitva van!`
+                )}
+                className="w-full text-left p-2 bg-slate-950 hover:bg-slate-800 rounded-xl border border-slate-800 text-xs text-slate-200 transition flex items-center justify-between"
+              >
+                <span>⚡ Provokatív riasztás tesztelése</span>
+                <span className="text-[10px] text-amber-400 font-bold">Küldés</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsNotificationModalOpen(false)}
+              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-semibold transition"
+            >
+              Bezárás
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* NAPI FELADAT SZERKESZTŐ MODAL */}
       {editingTaskModal && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
@@ -3013,7 +3162,7 @@ export default function App() {
               <div className="bg-slate-950 p-2 rounded-xl border border-slate-800">
                 <span className="text-slate-500 text-[10px] block">Szériabefagyasztó</span>
                 <span className="text-blue-300 font-extrabold text-sm mt-0.5 block">
-                  🧊 {getHabitStats(selectedHabitModal.id).freezeCount} db
+                  🧊 {getHabitStats(selectedHabitModal.id).freezeCount} db készleten
                 </span>
               </div>
             </div>
@@ -3055,7 +3204,7 @@ export default function App() {
       )}
 
       {/* ========================================================================= */}
-      {/* ALSÓ MENÜSÁV (5 LAP: MA, HÉT, IRÁNYTŰ, SPRINT, CÉLOK)                   */}
+      {/* ALSÓ MENÜSÁV                                                              */}
       {/* ========================================================================= */}
       <nav 
         className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-slate-900/95 backdrop-blur border-t border-slate-800 px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex justify-between items-center z-30"
