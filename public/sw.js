@@ -1,4 +1,5 @@
-// Service Worker az értesítések fogadásához és kattintáskezeléséhez
+// public/sw.js - Frissített háttér- és riasztáskezelő
+
 self.addEventListener("install", (event) => {
   self.skipWaiting();
 });
@@ -7,7 +8,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-// Értesítés kattintásának kezelése: megnyitja vagy előtérbe hozza az appot
+// Értesítés kattintásának kezelése
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   event.waitUntil(
@@ -20,24 +21,17 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-// Push üzenet fogadása háttérből
-self.addEventListener("push", (event) => {
-  let data = { title: "Mission Control", body: "Nem felejtettél el valamit ma?" };
-  if (event.data) {
-    try {
-      data = event.data.json();
-    } catch {
-      data.body = event.data.text();
-    }
+// Háttérben kapott közvetlen üzenetküldési parancs
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "TRIGGER_NOTIFICATION") {
+    const { title, body } = event.data;
+    self.registration.showNotification(title, {
+      body: body,
+      icon: "/icon-192.png",
+      badge: "/icon-192.png",
+      vibrate: [200, 100, 200],
+      tag: "mission-control-alert",
+      renotify: true
+    });
   }
-
-  const options = {
-    body: data.body,
-    icon: "/icon-192.png",
-    badge: "/icon-192.png",
-    vibrate: [200, 100, 200],
-    data: { url: "/" }
-  };
-
-  event.waitUntil(self.registration.showNotification(data.title, options));
 });
