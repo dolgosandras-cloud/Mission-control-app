@@ -1,4 +1,4 @@
-// public/sw.js - Frissített háttér- és riasztáskezelő
+// public/sw.js - Megbízható háttér- és riasztáskezelő
 
 self.addEventListener("install", (event) => {
   self.skipWaiting();
@@ -21,7 +21,7 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-// Háttérben kapott közvetlen üzenetküldési parancs
+// Háttérben kapott üzenetküldési parancs
 self.addEventListener("message", (event) => {
   if (event.data && event.data.type === "TRIGGER_NOTIFICATION") {
     const { title, body } = event.data;
@@ -33,5 +33,24 @@ self.addEventListener("message", (event) => {
       tag: "mission-control-alert",
       renotify: true
     });
+  }
+
+  // Helyi rendszer-időzítő (ha az Android támogatja a TimestampTrigger-t)
+  if (event.data && event.data.type === "SCHEDULE_TIMESTAMP_TRIGGER") {
+    const { title, body, timestamp } = event.data;
+    if ("showTrigger" in Notification.prototype && "TimestampTrigger" in self) {
+      try {
+        self.registration.showNotification(title, {
+          body: body,
+          icon: "/icon-192.png",
+          badge: "/icon-192.png",
+          showTrigger: new TimestampTrigger(timestamp),
+          tag: "scheduled-" + timestamp,
+          renotify: true
+        });
+      } catch (e) {
+        console.warn("TimestampTrigger hiba:", e);
+      }
+    }
   }
 });
